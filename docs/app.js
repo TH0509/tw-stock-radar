@@ -288,7 +288,7 @@ async function selectOrMissing(code,options={}){
   if(cautions.length){noticeBox.hidden=false;noticeBox.textContent=cautions.join('。')+'。缺值不會補成零。';}
   else noticeBox.hidden=true;
   return {source:fetchedFromWorker?'worker':'published',cache:remoteStatus,
-    date:details.last_price_date,requested:code,error:remoteError};
+    date:details.last_price_date,institutionDate:details.last_institution_date,requested:code,error:remoteError};
  }
  selected=code;renderList();clearCharts();
  $('stockName').textContent=code+'｜資料無法取得';$('stockCode').textContent=code;
@@ -330,7 +330,7 @@ function renderScreen(){
 function indicateLiveStatus(){
  const el=$('apiStatus');if(!el)return;
  const base=String(window.RADAR_API_BASE||'').trim();
- el.textContent=base?'外部金融 API：已設定（查詢時即時連線，依上游快取）':
+ el.textContent=base?'外部金融 API：已設定；每 15 分鐘自動檢查股價與法人資料（盤後更新）':
   '外部金融 API：尚未設定，目前僅顯示已發布的歷史快取';
 }
 async function loadV2(options={}){
@@ -353,6 +353,11 @@ async function loadV2(options={}){
    ?previousCode:userList[0];
  const result=code?await selectOrMissing(code,{manual}):null;
  if(!code){$('stockName').textContent='請新增自選股票';clearCharts();}
+ if(result?.date){
+  $('updateTime').textContent='股價：'+result.date+' ｜ 法人：'+(result.institutionDate||'尚無資料')+' ｜ 每 15 分鐘檢查更新';
+ }else if(marketData?.date){
+  $('updateTime').textContent='市場資料截至 '+marketData.date+' ｜ 每 15 分鐘檢查更新';
+ }
  if(manual){
   const apiConfigured=Boolean(String(window.RADAR_API_BASE||'').trim());
   if(result?.source==='worker'){
