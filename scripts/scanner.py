@@ -40,7 +40,7 @@ def prices(payload):
         tables.append({"fields":payload["fields"],"data":payload["data"]})
     for table in tables:
         try:
-            h=[re.sub(r"\\s+","",str(x)) for x in table["fields"]]
+            h=[re.sub(r"\s+","",str(x)) for x in table["fields"]]
             c=idx(h,"證券代號");n=idx(h,"證券名稱");v=idx(h,"成交股數")
             o=idx(h,"開盤價");hi=idx(h,"最高價");lo=idx(h,"最低價");p=idx(h,"收盤價")
         except (KeyError,ValueError):continue
@@ -64,7 +64,7 @@ def prices(payload):
 def institutional_complete(payload):
     """Three institutional net groups from TWSE T86, measured in lots."""
     if not payload.get("data"):return {}
-    h=[re.sub(r"\\s+","",str(x)) for x in payload.get("fields",[])]
+    h=[re.sub(r"\s+","",str(x)) for x in payload.get("fields",[])]
     def pos(prefix):
         return next((i for i,name in enumerate(h) if name.startswith(prefix)),None)
     c=pos("證券代號");n=pos("證券名稱")

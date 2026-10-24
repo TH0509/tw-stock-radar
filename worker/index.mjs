@@ -96,6 +96,20 @@ async function getDataset(name,code,start,end,token){
   throw Error('FinMind '+name+' 回傳異常：'+String(obj?.msg||obj?.status||'unknown').slice(0,120));
  return obj.data;
 }
+// Clock is Asia/Taipei. Refresh the regular edge cache namespace after 20:00
+// on weekdays so four-hour entries created before publication cannot mask
+// newly released after-close data. Until today's price + institution are both
+// present, use a short TTL to keep retrying without hammering FinMind.
+export function taipeiSession(now=new Date()){
+ const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+   timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',
+   hour:'2-digit',hourCycle:'h23',weekday:'short'
+ }).formatToParts(now).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+ const date=parts.year+'-'+parts.month+'-'+parts.day;
+ const hour=Number(parts.hour),marketWeekday=!['Sat','Sun'].includes(parts.weekday);
+ return {date,hour,marketWeekday,postClose:marketWeekday&&hour>=20,
+         cacheVersion:date+'-'+(hour>=20?'post':'pre')};
+}
 const json=(data,status,origin,ttl=0)=>new Response(JSON.stringify(data),{status,
  headers:{'content-type':'application/json;charset=utf-8','access-control-allow-origin':origin,
   vary:'Origin','x-content-type-options':'nosniff',
@@ -114,10 +128,11 @@ export default {async fetch(request,env,ctx){
  const match=/^\/api\/stock\/(\d{4,6})$/.exec(url.pathname);
  if(!match)return json({error:'找不到 API 路徑'},404,origin);
  const code=match[1],force=url.searchParams.get('refresh')==='1';
- // Manual refresh bypasses the normal four-hour cache, but is throttled at the edge
- // to one upstream refresh per stock per five minutes to protect the FinMind quota.
- const standardKey=new Request(url.origin+url.pathname);
- const refreshKey=new Request(url.origin+url.pathname+'?manual=1');
+ const session=taipeiSession();
+ // Namespace rollover at Taiwan 20:00 invalidates pre-announcement entries.
+ // Manual refresh still has an independent 5-minute per-stock edge cache.
+ const standardKey=new Request(url.origin+url.pathname+'?session='+session.cacheVersion);
+ const refreshKey=new Request(url.origin+url.pathname+'?manual=1&session='+session.cacheVersion);
  const key=force?refreshKey:standardKey;
  const cached=await caches.default.match(key);
  if(cached){const response=new Response(cached.body,cached);
@@ -133,12 +148,23 @@ export default {async fetch(request,env,ctx){
    getDataset('TaiwanStockPrice',code,start,end,env.FINMIND_TOKEN),
    getDataset('TaiwanStockInstitutionalInvestorsBuySellWide',code,start,end,env.FINMIND_TOKEN)]);
   const stock=buildStock(code,p,i);
-  const response=json(stock,200,origin,force?300:14400);
+  const freshToday=stock.last_price_date===session.date
+    && stock.last_institution_date===session.date;
+  // During the expected after-close release window, check again if still stale.
+  // Outside trading days keep the normal longer TTL.
+  const regularTTL=session.postClose&&!freshToday?900:14400;
+  stock.feed_status={latest_price_date:stock.last_price_date,
+    latest_institution_date:stock.last_institution_date,
+    taipei_date:session.date,
+    today_complete:freshToday,
+    checked_after_20:session.postClose,
+    cache_seconds:force?300:regularTTL};
+  const response=json(stock,200,origin,force?300:regularTTL);
   response.headers.set('access-control-expose-headers','x-radar-cache-status');
   response.headers.set('x-radar-cache-status','upstream-fetched');
   // Update normal cache after a forced refresh, so next ordinary stock visit stays fresh.
   if(force){
-    const regular=json(stock,200,origin,14400);
+    const regular=json(stock,200,origin,regularTTL);
     ctx.waitUntil(Promise.all([
       caches.default.put(refreshKey,response.clone()),
       caches.default.put(standardKey,regular.clone())
