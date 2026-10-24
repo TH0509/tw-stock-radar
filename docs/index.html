@@ -6,9 +6,9 @@
   <meta name="color-scheme" content="dark">
   <meta name="description" content="台灣個股動能、RSI、均線與三大法人買賣超追蹤儀表板">
   <title>台股 Radar｜個股動能與三大法人追蹤</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=3">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" defer></script>
-  <script src="./app.js" defer></script>
+  <script src="./app.js?v=3" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -21,7 +21,7 @@
       <form id="watchForm" class="watch-add"><input id="watchCode" placeholder="輸入股票代號（例如 2330）" pattern="[0-9]{4,6}" required maxlength="6"><button type="submit">＋ 新增</button></form>
       <p class="watch-tip">自選股名單儲存在此瀏覽器</p>
       <label class="search-wrap" for="search"><span>⌕</span>
-        <input id="search" type="search" autocomplete="off" placeholder="搜尋股票代號或名稱">
+        <input id="search" type="search" autocomplete="off" placeholder="搜尋所有上市／上櫃股票代號或名稱">
       </label>
       <div class="ticker-list" id="tickerList" aria-label="個股選擇清單"></div>
       <div class="side-note">
@@ -51,7 +51,7 @@
           <div class="panel-heading"><div><div class="panel-index">TWSE / FOREIGN FLOW SCREENER</div><h2>外資由賣轉買・連買三日・量增 20%</h2><p>先賣超，再連續三個交易日買超，且最新日成交量較前一交易日成長至少 20%</p></div></div>
           <p id="screenStatus" class="screen-hint">掃描資料讀取中…</p>
           <div class="table-scroll"><table><thead><tr><th>股票</th><th>三日外資買超（張）</th><th>成交量增幅</th><th>追蹤</th></tr></thead><tbody id="screenTable"></tbody></table></div>
-          <p class="screen-hint">僅證交所上市個股，不含上櫃與 ETF。外資定義不含外資自營商；僅盤後更新。</p>
+          <p class="screen-hint">掃描上市與上櫃普通股（視官方資料可取得範圍），不含 ETF。外資定義不含外資自營商；僅盤後更新。</p>
         </section>
         <div id="coverageNote" class="notice" hidden></div>
         <section class="metric-grid" aria-label="關鍵指標">
