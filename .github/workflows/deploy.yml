@@ -5,6 +5,8 @@ on:
   schedule:
     # Taiwan 20:43, 21:43, 22:43, 23:43; publish after market data is confirmed.
     - cron: '43 12-15 * * 1-5'
+    # Taiwan 09:43 Tuesday–Saturday, catch up delayed prior-day feeds.
+    - cron: '43 1 * * 2-6'
   workflow_dispatch:
   push:
     branches: [main]
