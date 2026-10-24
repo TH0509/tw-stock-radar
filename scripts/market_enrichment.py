@@ -13,22 +13,31 @@ def otc_json(path,day,**extra):
     with urlopen(req,timeout=15) as r:return json.load(r)
 
 def otc_prices(obj):
-    for table in obj.get("tables",[]):
-        fs=[re.sub(r"\s+","",str(v)) for v in table.get("fields",[])]
+    """Read OTC daily OHLCV from structured table columns, not index guesses."""
+    tables=list(obj.get("tables",[]))
+    if obj.get("data") and obj.get("fields"):tables.append(obj)
+    for table in tables:
+        fs=[re.sub(r"\\s+","",str(v)) for v in table.get("fields",[])]
         rows=table.get("data",[])
-        if not rows:continue
-        def at(names,default):return next((i for i,x in enumerate(fs) if x in names),default)
-        c=at(("代號","證券代號"),0);n=at(("名稱","證券名稱"),1);p=at(("收盤","收盤價"),2);v=at(("成交股數","成交量"),7)
+        def at(names):
+            return next((i for i,x in enumerate(fs) if x in names),None)
+        c=at(("代號","證券代號"));n=at(("名稱","證券名稱"))
+        o=at(("開盤","開盤價"));hi=at(("最高","最高價"))
+        lo=at(("最低","最低價"));p=at(("收盤","收盤價"))
+        v=at(("成交股數","成交量"))
+        if not rows or None in (c,n,o,hi,lo,p,v):continue
         result={}
         for row in rows:
             try:
                 code=str(row[c]).strip()
                 if not re.fullmatch(r"[1-9][0-9]{3}",code):continue
-                close=float(str(row[p]).replace(",",""))
-                vol=float(str(row[v]).replace(",",""))
-                if close>0 and vol>=0:result[code]={"name":str(row[n]).strip(),"close":close,"volume_shares":int(vol)}
-            except (IndexError,ValueError,TypeError):pass
-        if len(result)>=20:return result
+                values=[float(str(row[i]).replace(",","")) for i in (o,hi,lo,p,v)]
+                opening,high,low,closing,volume=values
+                if not (0<low<=min(opening,closing)<=max(opening,closing)<=high and volume>=0):continue
+                result[code]={"name":str(row[n]).strip(),"open":opening,"high":high,
+                              "low":low,"close":closing,"volume":volume,"volume_shares":volume}
+            except (IndexError,TypeError,ValueError):continue
+        if len(result)>20:return result
     return {}
 
 def otc_flows(obj):
