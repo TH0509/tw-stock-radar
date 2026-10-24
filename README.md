@@ -1,6 +1,6 @@
 # 台股 Radar：動能與三大法人追蹤網站
 
-第一版可執行專案：以 FinMind 免費個股資料 API 擷取台股**還原股價**及**個股三大法人買賣超**，在 Python 計算技術指標，透過 GitHub Actions 於交易日晚上產生靜態 JSON，並部署至 GitHub Pages 網站。
+第一版可執行專案：以 FinMind 免費個股資料 API 擷取台股**原始收盤價**及**個股三大法人買賣超**，在 Python 計算技術指標，透過 GitHub Actions 於交易日晚上產生靜態 JSON，並部署至 GitHub Pages 網站。
 
 > **狀態**：完整程式碼與 Codex Agent、Skill 定義已建立；需部署到你擁有的 GitHub 儲存庫，並實際執行資料更新後，網站才會顯示**真實行情**。目前資料檔刻意留空，沒有偽造任何台股股價。
 
@@ -11,7 +11,7 @@
 - 個股 **MA5 / MA20 / MA60、ROC5 / ROC20、RSI14** 與簡易動能狀態。
 - 每日外資（含外資自營商）／投信／自營商淨買賣超長條圖，最近 12 個有資料的交易日明細，最近 5 日淨買賣總計。
 - 股價與法人資料最新日期、網頁資料產生時間，手機版支援。
-- 工作日晚間 **19:30（臺灣時間）** 排程 GitHub Actions 更新，或手動重跑。資料是收盤後日資料，**不是即時盤中資料**。
+- 工作日晚間 **20:30（臺灣時間）** 排程 GitHub Actions 更新，或手動重跑。資料是收盤後日資料，**不是即時盤中資料**。
 
 ## 首次本機啟動（需 Python 3.10+）
 
@@ -49,7 +49,7 @@ Windows PowerShell 對 token 的設定是 `$env:FINMIND_TOKEN = '你的 FinMind 
 4. 在 **Settings → Secrets and variables → Actions → New repository secret** 新增 `FINMIND_TOKEN`（可選，但建議）。絕對不要上傳 token 到 `docs/` 或程式碼。
 5. 到 **Actions → 台股收盤分析與網站部署 → Run workflow** 手動執行一次。全部成功才會發布。
 6. 網站網址通常會是 `https://你的帳號.github.io/tw-stock-radar/`，要以 Pages 設定頁顯示的實際網址為準。請勿把此示例當成已經部署完成的網址。
-7. 之後週一至週五臺灣時間晚上約 19:30 排程執行；GitHub 排程可能延遲，遇假日會維持上次交易資料。
+7. 之後週一至週五臺灣時間晚上約 20:30 排程執行；GitHub 排程可能延遲，遇假日會維持上次交易資料。
 
 **注意**：本專案使用 Pages **GitHub Actions** 部署，而非 `Deploy from a branch`。Actions 每次先重新擷取分析再發布，若有任何股票資料失敗則整次 workflow 失敗，不會把部分更新冒充完整結果。
 
@@ -83,7 +83,7 @@ AGENTS.md
 
 ## 分析定義及資料品質
 
-- 價格使用 `TaiwanStockPriceAdj` 的還原價；同一批資料計算 MA、ROC、RSI 與折線圖。
+- 免費版使用 `TaiwanStockPrice` 的未還原價格；同一批資料計算 MA、ROC、RSI 與折線圖。除權息、分割日可能產生非交易因素造成的跳動，不應直接將跨除權息期間的 ROC 解讀為總報酬。
 - MA(n)：最近 n 個交易日價格平均。ROC(n)：`(今日價/前 n 交易日價 - 1) ×100%`。
 - RSI14：Wilder 14 日平滑法；14 日以前沒有 RSI 數值。
 - 法人資料使用 `TaiwanStockInstitutionalInvestorsBuySell` 的 `buy - sell`。股數÷1000 換算為張；外資合併 `Foreign_Investor` 與 `Foreign_Dealer_Self`；投信 `Investment_Trust`；自營商合併 `Dealer`、`Dealer_self`、`Dealer_Hedging`。
