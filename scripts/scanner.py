@@ -39,14 +39,14 @@ def prices(payload):
         tables.append({"fields":payload["fields"],"data":payload["data"]})
     for table in tables:
         try:
-            h=table["fields"];c=idx(h,"證券代號");v=idx(h,"成交股數");p=idx(h,"收盤價");n=idx(h,"證券名稱")
+            h=table["fields"];c=idx(h,"證券代號");v=idx(h,"成交股數");p=idx(h,"收盤價");n=h.index("證券名稱") if "證券名稱" in h else None
         except (KeyError,ValueError):continue
         result={}
         for row in table.get("data",[]):
             code=str(row[c]).strip()
             volume=number(row[v])
             if re.fullmatch("[1-9][0-9]{3}",code) and volume is not None:
-                result[code]={"volume":volume,"close":number(row[p]),"name":str(row[n]).strip()}
+                result[code]={"volume":volume,"close":number(row[p]),"name":str(row[n]).strip() if n is not None else code}
         if len(result)>20:return result
     return {}
 def qualifies(days):
