@@ -3,7 +3,8 @@ name: 台股收盤分析與網站部署
 
 on:
   schedule:
-    - cron: '30 12 * * 1-5'
+    # Taiwan 20:43, 21:43, 22:43, 23:43; publish after market data is confirmed.
+    - cron: '43 12-15 * * 1-5'
   workflow_dispatch:
   push:
     branches: [main]
@@ -37,7 +38,24 @@ jobs:
           python-version: '3.12'
       - name: 分析程式測試
         run: python -m unittest discover -s tests -v
+      - name: 確認當日盤後股價與三大法人已公布
+        if: github.event_name == 'schedule'
+        id: publication
+        run: python scripts/publication_gate.py --mode probe
+      - name: 決定是否產製最新資料
+        id: ready
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISHED: ${{ steps.publication.outputs.ready }}
+        run: |
+          if [ "$EVENT_NAME" != "schedule" ] || [ "$PUBLISHED" = "true" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "當日交易資料尚未完全公告或今日休市；本次不覆蓋網站，下次排程重試。"
+          fi
       - name: 還原市場歷史快取
+        if: steps.ready.outputs.publish == 'true'
         uses: actions/cache/restore@v4
         with:
           path: .cache/market-history
@@ -45,20 +63,27 @@ jobs:
           restore-keys: |
             market-history-v2-
       - name: 擷取全市場歷史 OHLC／法人資料並建立獨立股票檔
-        continue-on-error: true
-        run: python scripts/market_history.py --days 238 --max-missing 120
+        if: steps.ready.outputs.publish == 'true'
+        run: python scripts/market_history.py --days 238 --max-missing 240
+      - name: 二次確認實際輸出包含當日完整資料
+        if: github.event_name == 'schedule' && steps.ready.outputs.publish == 'true'
+        env:
+          TARGET_DATE: ${{ steps.publication.outputs.trading_date }}
+        run: python scripts/publication_gate.py --mode validate --date "$TARGET_DATE"
       - name: 保存累積歷史快取供下次增量更新
-        if: always()
+        if: always() && steps.ready.outputs.publish == 'true'
         uses: actions/cache/save@v4
         with:
           path: .cache/market-history
           key: market-history-v2-${{ github.run_id }}
       - name: 補充原始六檔較長的 FinMind 歷史
+        if: steps.ready.outputs.publish == 'true'
         continue-on-error: true
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/update.py
       - name: 將已部署的 Worker API URL 寫入網站公開設定
+        if: steps.ready.outputs.publish == 'true'
         env:
           RADAR_API_BASE_URL: ${{ vars.RADAR_API_BASE_URL }}
         run: |
@@ -73,9 +98,12 @@ jobs:
           )
           print("外部 API 設定狀態：", "已設定" if url else "尚未設定，顯示靜態快取")
           PY
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - if: steps.ready.outputs.publish == 'true'
+        uses: actions/configure-pages@v5
+      - if: steps.ready.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@v4
         with:
           path: docs
       - id: deployment
+        if: steps.ready.outputs.publish == 'true'
         uses: actions/deploy-pages@v4
