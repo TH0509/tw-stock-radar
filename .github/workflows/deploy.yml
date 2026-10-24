@@ -45,7 +45,8 @@ jobs:
           restore-keys: |
             market-history-v2-
       - name: 擷取全市場歷史 OHLC／法人資料並建立獨立股票檔
-        run: python scripts/market_history.py --days 238
+        continue-on-error: true
+        run: python scripts/market_history.py --days 238 --max-missing 120
       - name: 保存累積歷史快取供下次增量更新
         if: always()
         uses: actions/cache/save@v4
@@ -57,6 +58,21 @@ jobs:
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/update.py
+      - name: 將已部署的 Worker API URL 寫入網站公開設定
+        env:
+          RADAR_API_BASE_URL: ${{ vars.RADAR_API_BASE_URL }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          url = os.environ.get("RADAR_API_BASE_URL", "").rstrip("/")
+          if url and not url.startswith("https://"):
+              raise SystemExit("RADAR_API_BASE_URL 必須是 https 網址")
+          pathlib.Path("docs/api-config.js").write_text(
+              "window.RADAR_API_BASE = " + json.dumps(url) + ";\n",
+              encoding="utf-8"
+          )
+          print("外部 API 設定狀態：", "已設定" if url else "尚未設定，顯示靜態快取")
+          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

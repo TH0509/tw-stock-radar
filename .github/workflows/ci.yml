@@ -22,6 +22,15 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: JavaScript 語法檢查
         run: node --check docs/app.js
+      - name: 檢查 Worker API 語法與法人資料單元測試
+        run: |
+          node --check worker/index.mjs
+          node --test tests/api_worker.test.mjs
+      - name: 檢查新版右側選股與 API 設定
+        run: |
+          grep -q 'id="signalSidebar"' docs/index.html
+          grep -q 'api-config.js' docs/index.html
+          grep -q '/api/stock/' docs/app.js
       - name: 檢查 5 日與 K 線元件
         run: |
           grep -q 'data-period="5"' docs/index.html

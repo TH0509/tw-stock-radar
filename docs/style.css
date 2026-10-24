@@ -6,3 +6,21 @@
 /* Genuine OHLC candlestick chart uses a div, not the Chart.js canvas. */
 #priceChart.candle-pane { width:100%;height:100%;min-height:360px;position:relative; }
 #priceChart.missing-candles { display:flex;align-items:center;justify-content:center;padding:28px;color:#9db0c8;text-align:center;line-height:1.8; }
+
+/* Always-visible stock signal sidebar (desktop), scrollable on its own. */
+.signal-sidebar{width:302px;min-width:302px;background:#0c1524;border-left:1px solid #26374b;min-height:100vh}
+.signal-sticky{position:sticky;top:0;max-height:100vh;overflow:auto;padding:26px 16px 22px}
+.signal-sticky h2{font-size:19px;margin:8px 0 10px;line-height:1.4;color:#e9f1ff}
+.signal-description,.signal-source{font-size:12px;color:#849cb8;line-height:1.75}
+.signal-source{margin-top:16px;border-top:1px solid #293b50;padding-top:14px}
+.signal-api-status{border-radius:8px;background:#182b42;border:1px solid #314865;padding:12px;color:#adcae9;font-size:12px;line-height:1.65}
+.screen-list{display:flex;flex-direction:column;gap:9px}
+.signal-card{background:#14243a;border:1px solid #2b405a;border-radius:10px;padding:12px}
+.signal-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.signal-card-head strong{color:#f0f5fc;font-size:13px;overflow-wrap:anywhere}
+.signal-card .screen-add{padding:6px 8px;font-size:11px;white-space:nowrap}
+.signal-card-data{font-size:12px;font-weight:700;margin:10px 0 4px;color:#74ddb9}
+.signal-flow-days{font-size:11px;line-height:1.5;color:#abc1df;overflow-wrap:anywhere}
+@media(max-width:1260px){.signal-sidebar{width:262px;min-width:262px}.signal-sticky{padding:20px 11px}}
+@media(max-width:1000px){.app-shell{flex-wrap:wrap}.signal-sidebar{width:100%;min-width:0;min-height:0;border-left:0;border-top:1px solid #2b405a}.signal-sticky{position:static;max-height:460px;padding:18px 24px}.screen-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}}
+@media(max-width:660px){.signal-sticky{max-height:none;padding:20px 16px}.screen-list{display:flex;flex-direction:column}}
