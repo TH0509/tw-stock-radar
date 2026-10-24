@@ -1,1 +1,10 @@
-{"schema":1,"generated_at":null,"source":"尚未執行資料更新","price_adjusted":true,"institution_unit":"張","demo":false,"stocks":{}}
+{
+  "stocks": [
+    {"code": "2330", "name": "台積電"},
+    {"code": "2317", "name": "鴻海"},
+    {"code": "2454", "name": "聯發科"},
+    {"code": "2881", "name": "富邦金"},
+    {"code": "2882", "name": "國泰金"},
+    {"code": "2603", "name": "長榮"}
+  ]
+}
