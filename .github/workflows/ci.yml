@@ -26,6 +26,7 @@ jobs:
         run: |
           node --check worker/index.mjs
           node --test tests/api_worker.test.mjs
+          node --test tests/refresh.test.mjs
       - name: 檢查新版右側選股與 API 設定
         run: |
           grep -q 'id="signalSidebar"' docs/index.html

@@ -150,7 +150,13 @@ async function load() {
   } catch(err) {notice(`無法載入分析資料：${err.message}。請先啟動本機網頁伺服器或檢查部署結果。`);$('updateTime').textContent='資料讀取失敗';}
 }
 $('search').addEventListener('input',renderList);
-$('refresh').addEventListener('click',loadV2);
+$('refresh').addEventListener('click',async()=>{
+ const button=$('refresh');if(button.disabled)return;
+ button.disabled=true;button.textContent='⟳ 更新中…';
+ try{await loadV2({manual:true});}
+ catch(err){notice('重新載入失敗：'+String(err?.message||err));}
+ finally{button.disabled=false;button.textContent='⟳ 更新資料';}
+});
 $('periodTabs').addEventListener('click',e=>{
   const btn=e.target.closest('button[data-period]');if(!btn)return;
   period=Number(btn.dataset.period);
@@ -229,24 +235,27 @@ function makeCompact(entry){
    signal,last_price_date:last.date,last_institution_date:available.at(-1)?.date||null,market:entry.market||'TWSE',
    flows,snapshot_only:true};
 }
-async function selectOrMissing(code){
+async function selectOrMissing(code,options={}){
  const requestId=++latestSelectionRequest;
  const noticeBox=$('coverageNote');noticeBox.hidden=false;
  const staticDetails=payload?.stocks?.[code];
  const index=marketData?.stocks?.[code];
- let details=null,remoteError='';
+ let details=null,remoteError='',remoteStatus='';
+ let fetchedFromWorker=false;
  const base=String(window.RADAR_API_BASE||'').trim().replace(/\/+$/,'');
  selected=code;renderList();
  if(base){
   noticeBox.textContent='正在向外部金融資料 API 查詢 '+code+' 的 OHLC、MA 與三大法人歷史…';
   try{
-   const r=await fetch(base+'/api/stock/'+encodeURIComponent(code),{headers:{accept:'application/json'}});
+   const url=base+'/api/stock/'+encodeURIComponent(code)+(options.manual?'?refresh=1':'');
+   const r=await fetch(url,{cache:'no-store',headers:{accept:'application/json'}});
+   remoteStatus=r.headers.get('x-radar-cache-status')||'unknown';
    const response=await r.json();
    if(!r.ok)throw new Error(response?.error||'HTTP '+r.status);
    if(response.code!==code||!Array.isArray(response.points)||!response.points.length)
     throw new Error('遠端股票資料不完整');
    response.name=index?.name||staticDetails?.name||code;
-   details=response;
+   details=response;fetchedFromWorker=true;
    if(!payload)payload={stocks:{}};
    payload.stocks[code]=details;
   }catch(err){remoteError=String(err.message||err);}
@@ -278,7 +287,8 @@ async function selectOrMissing(code){
   if(valid<15)cautions.push('三大法人完整資料目前只有 '+valid+' 個交易日（目標至少 15 日）');
   if(cautions.length){noticeBox.hidden=false;noticeBox.textContent=cautions.join('。')+'。缺值不會補成零。';}
   else noticeBox.hidden=true;
-  return;
+  return {source:fetchedFromWorker?'worker':'published',cache:remoteStatus,
+    date:details.last_price_date,requested:code,error:remoteError};
  }
  selected=code;renderList();clearCharts();
  $('stockName').textContent=code+'｜資料無法取得';$('stockCode').textContent=code;
@@ -287,6 +297,7 @@ async function selectOrMissing(code){
  $('instTable').replaceChildren();
  noticeBox.hidden=false;
  noticeBox.textContent='找不到 '+code+' 的 OHLC／法人資料'+(remoteError?'：'+remoteError:'。請先部署外部 API 或檢查市場回補')+'。';
+ return {source:'unavailable',requested:code,error:remoteError};
 }
 function renderScreen(){
  const container=$('screenList');container.replaceChildren();
@@ -322,7 +333,9 @@ function indicateLiveStatus(){
  el.textContent=base?'外部金融 API：已設定（查詢時即時連線，依上游快取）':
   '外部金融 API：尚未設定，目前僅顯示已發布的歷史快取';
 }
-async function loadV2(){
+async function loadV2(options={}){
+ const manual=options.manual===true;
+ const previousCode=selected;
  indicateLiveStatus();
  await load();
  try{
@@ -335,8 +348,24 @@ async function loadV2(){
   if(!payload.stocks[code] && !item.has_detail){const record=makeCompact(item);if(record)payload.stocks[code]=record;}
  }
  renderScreen();renderList();
- const code=userList.includes(selected)?selected:userList[0];
- if(code)void selectOrMissing(code);else{$('stockName').textContent='請新增自選股票';clearCharts();}
+ // Do not jump back to one of the original six when users refresh a different stock.
+ const code=previousCode&&(userList.includes(previousCode)||payload?.stocks?.[previousCode]||marketData?.stocks?.[previousCode])
+   ?previousCode:userList[0];
+ const result=code?await selectOrMissing(code,{manual}):null;
+ if(!code){$('stockName').textContent='請新增自選股票';clearCharts();}
+ if(manual){
+  const apiConfigured=Boolean(String(window.RADAR_API_BASE||'').trim());
+  if(result?.source==='worker'){
+   const cache=result.cache==='upstream-fetched'?'已向 FinMind 重新查詢':
+    result.cache==='manual-refresh-cache'?'使用最近五分鐘的手動更新快取':
+    '讀取 API 快取';
+   notice('已更新 '+result.requested+'：'+cache+'。最新行情交易日：'+(result.date||'未知')+'；盤後資料並非即時報價。');
+  }else if(!apiConfigured){
+   notice('外部金融 API 尚未連接；本次只重新讀取 GitHub Pages 已發布的資料，無法直接向 FinMind 更新。請先設定 RADAR_API_BASE_URL 並重新部署。');
+  }else{
+   notice('已重新讀取網頁資料，但外部 API 查詢未成功'+(result?.error?'：'+result.error:'')+'。目前顯示的仍可能是上次部署的資料。');
+  }
+ }
 }
 $('watchForm').addEventListener('submit',e=>{e.preventDefault();addCode($('watchCode').value.trim());});
 loadV2();
