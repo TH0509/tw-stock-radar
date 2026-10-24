@@ -17,7 +17,9 @@
         <span class="brand-mark">R<span class="brand-dot">●</span></span>
         <span class="brand-text">台股 <strong>RADAR</strong><small>市場趨勢觀測站</small></span>
       </a>
-      <div class="side-head"><span>追蹤清單</span><span class="side-count" id="tickerCount">—</span></div>
+      <div class="side-head"><span>我的自選股</span><span class="side-count" id="tickerCount">—</span></div>
+      <form id="watchForm" class="watch-add"><input id="watchCode" placeholder="輸入股票代號（例如 2330）" pattern="[0-9]{4,6}" required maxlength="6"><button type="submit">＋ 新增</button></form>
+      <p class="watch-tip">自選股名單儲存在此瀏覽器</p>
       <label class="search-wrap" for="search"><span>⌕</span>
         <input id="search" type="search" autocomplete="off" placeholder="搜尋股票代號或名稱">
       </label>
@@ -45,6 +47,13 @@
           <div class="hero-note"><span>分析頻率</span><strong>Daily <em>/ EOD</em></strong><small>每日收盤 · 非即時行情</small></div>
         </section>
 
+        <section class="panel" id="screener" aria-label="全上市股票篩選">
+          <div class="panel-heading"><div><div class="panel-index">TWSE / FOREIGN FLOW SCREENER</div><h2>外資由賣轉買・連買三日・量增 20%</h2><p>先賣超，再連續三個交易日買超，且最新日成交量較前一交易日成長至少 20%</p></div></div>
+          <p id="screenStatus" class="screen-hint">掃描資料讀取中…</p>
+          <div class="table-scroll"><table><thead><tr><th>股票</th><th>三日外資買超（張）</th><th>成交量增幅</th><th>追蹤</th></tr></thead><tbody id="screenTable"></tbody></table></div>
+          <p class="screen-hint">僅證交所上市個股，不含上櫃與 ETF。外資定義不含外資自營商；僅盤後更新。</p>
+        </section>
+        <div id="coverageNote" class="notice" hidden></div>
         <section class="metric-grid" aria-label="關鍵指標">
           <article class="metric"><span class="metric-label">收盤價 <span>PRICE</span></span><div class="metric-value" id="vClose">—</div><div class="metric-foot">未經除權息還原 · 新臺幣</div></article>
           <article class="metric"><span class="metric-label">20 日價格動能 <span>ROC 20</span></span><div class="metric-value" id="vRoc">—</div><div class="metric-foot">相對 20 個交易日前報酬率</div></article>
