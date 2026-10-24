@@ -67,8 +67,8 @@ def main():
         if not code.isdigit() or len(code) not in (4, 5, 6) or not name or code in stocks:
             raise ValueError(f'股票設定不正確：{item}')
         try:
-            # Adjusted prices avoid artificial momentum around ex-rights/ex-dividend.
-            price = get_dataset('TaiwanStockPriceAdj', code, start, end, token)
+            # Free plan: unadjusted daily prices. Ex-rights/dividend days can distort returns.
+            price = get_dataset('TaiwanStockPrice', code, start, end, token)
             institution = get_dataset('TaiwanStockInstitutionalInvestorsBuySell', code, start, end, token)
             stocks[code] = build_stock(code, name, price, institution)
             print(f'{code} {name}: {len(stocks[code]["points"])} 交易日；最新收盤 {stocks[code]["last_price_date"]}')
@@ -83,8 +83,8 @@ def main():
     snapshot = {
         'schema': 1,
         'generated_at': now.isoformat(timespec='seconds'),
-        'source': 'FinMind TaiwanStockPriceAdj + TaiwanStockInstitutionalInvestorsBuySell',
-        'price_adjusted': True, 'institution_unit': '張 (淨買賣股數 ÷ 1000)',
+        'source': 'FinMind TaiwanStockPrice + TaiwanStockInstitutionalInvestorsBuySell',
+        'price_adjusted': False, 'institution_unit': '張 (淨買賣股數 ÷ 1000)',
         'demo': False, 'stocks': stocks,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

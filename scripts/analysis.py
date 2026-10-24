@@ -1,6 +1,7 @@
 """Pure calculation functions for daily Taiwan stock analysis.
 
-FinMind TaiwanStockPriceAdj uses adjusted OHLC prices. Institutional buy/sell
+FinMind TaiwanStockPrice provides unadjusted OHLC prices. Ex-rights/dividend
+days can distort momentum/return calculations. Institutional buy/sell
 figures are counts of shares; we convert the daily net to lots (1 lot=1000 shares).
 No trading recommendation is made by these calculations.
 """
