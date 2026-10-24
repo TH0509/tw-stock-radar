@@ -261,11 +261,10 @@ async function selectOrMissing(code,options={}){
   }catch(err){remoteError=String(err.message||err);}
  }
  if(requestId!==latestSelectionRequest)return;
- if(!details&&staticDetails&&!staticDetails.snapshot_only)details=staticDetails;
  if(!details&&index?.has_detail){
   noticeBox.textContent='正在讀取上次部署的股票歷史快取…';
   try{
-   const r=await fetch('./data/market/'+encodeURIComponent(code)+'.json?v=6',{cache:'no-store'});
+   const r=await fetch('./data/market/'+encodeURIComponent(code)+'.json?v=8',{cache:'no-store'});
    if(!r.ok)throw new Error('HTTP '+r.status);
    const obj=await r.json();
    if(obj.code!==code||!Array.isArray(obj.points)||!obj.points.length)
