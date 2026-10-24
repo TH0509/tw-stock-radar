@@ -64,7 +64,7 @@ function select(code) {
   paintNumber('vRsi',s.latest_rsi14);
   paintNumber('vFlow',s.flows.d5.total,' 張',true);
   $('flowDate').textContent=`${s.flows.d5.count}/5 個有資料交易日 · 截至 ${s.last_institution_date || '—'}`;
-  $('tableCaption').textContent=`法人資料截至 ${s.last_institution_date || '—'} · 單位：張`;
+  $('tableCaption').textContent=`法人資料截至 ${s.last_institution_date || '—'} · 最近最多 25 個有資料交易日 · 單位：張`;
   renderCharts(s); renderTable(s);
 }
 function renderCandleChart(points) {
@@ -123,7 +123,7 @@ function renderCharts(s) {
 }
 function renderTable(s) {
   const body=$('instTable');body.replaceChildren();
-  const rows=s.points.filter(p=>p.foreign!==null||p.total!==null).slice(-12).reverse();
+  const rows=s.points.filter(p=>p.foreign!==null||p.trust!==null||p.dealer!==null).slice(-25).reverse();
   if (!rows.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.textContent='目前沒有法人資料';tr.append(td);body.append(tr);return;}
   rows.forEach(p=>{
     const tr=document.createElement('tr');
