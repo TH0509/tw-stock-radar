@@ -6,10 +6,11 @@
   <meta name="color-scheme" content="dark">
   <meta name="description" content="台灣個股動能、RSI、均線與三大法人買賣超追蹤儀表板">
   <title>台股 Radar｜個股動能與三大法人追蹤</title>
-  <link rel="stylesheet" href="./style.css?v=5">
+  <link rel="stylesheet" href="./style.css?v=6">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js" defer></script>
-  <script src="./app.js?v=5" defer></script>
+  <script src="./api-config.js?v=6" defer></script>
+  <script src="./app.js?v=6" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -48,12 +49,6 @@
           <div class="hero-note"><span>分析頻率</span><strong>Daily <em>/ EOD</em></strong><small>每日收盤 · 非即時行情</small></div>
         </section>
 
-        <section class="panel" id="screener" aria-label="全上市股票篩選">
-          <div class="panel-heading"><div><div class="panel-index">TWSE / FOREIGN FLOW SCREENER</div><h2>外資由賣轉買・連買三日・量增 20%</h2><p>先賣超，再連續三個交易日買超，且最新日成交量較前一交易日成長至少 20%</p></div></div>
-          <p id="screenStatus" class="screen-hint">掃描資料讀取中…</p>
-          <div class="table-scroll"><table><thead><tr><th>股票</th><th>三日外資買超（張）</th><th>成交量增幅</th><th>追蹤</th></tr></thead><tbody id="screenTable"></tbody></table></div>
-          <p class="screen-hint">掃描上市與上櫃普通股（視官方資料可取得範圍），不含 ETF。外資定義不含外資自營商；僅盤後更新。</p>
-        </section>
         <div id="coverageNote" class="notice" hidden></div>
         <section class="metric-grid" aria-label="關鍵指標">
           <article class="metric"><span class="metric-label">收盤價 <span>PRICE</span></span><div class="metric-value" id="vClose">—</div><div class="metric-foot">未經除權息還原 · 新臺幣</div></article>
@@ -65,7 +60,7 @@
         <section class="panel large-panel">
           <div class="panel-heading"><div><div class="panel-index">01 / MOMENTUM</div><h2>每日 K 線與均線走勢</h2><p>每日開盤、最高、最低、收盤（紅漲綠跌），疊加 MA5、MA20、MA60</p></div><div class="period-tabs" id="periodTabs" role="group" aria-label="圖表期間"><button class="tab" data-period="5">5D</button><button class="tab" data-period="22">1M</button><button class="tab active" data-period="66">3M</button><button class="tab" data-period="132">6M</button><button class="tab" data-period="0">全部</button></div></div>
           <div class="chart-wrapper"><div id="priceChart" class="candle-pane" role="img" aria-label="每日開高低收 K 線圖"></div></div>
-          <div class="chart-note"><span class="info-dot">i</span> 動能判斷：收盤價、MA5、MA20 與 ROC20 的相對關係，並非買賣指令。</div>
+          <div class="chart-note"><span class="info-dot">i</span> <strong>紅漲綠跌</strong> · K 線：開盤／最高／最低／收盤；均線：<span style="color:#5ad5af">MA5</span>、<span style="color:#e9c57d">MA20</span>、<span style="color:#ac92ef">MA60</span>。 動能判斷：收盤價、MA5、MA20 與 ROC20 的相對關係，並非買賣指令。</div>
         </section>
 
         <div class="two-col">
@@ -79,6 +74,17 @@
         <footer class="footer"><span>TAIWAN STOCK RADAR © 2026</span><span>價格未經除權息還原。詳細歷史資料來自 FinMind；市場掃描來自官方盤後資料。未取得的資料會以「—」顯示，無法保證即時或完整；請核對官方交易資料。</span></footer>
       </div>
     </main>
+    <aside class="signal-sidebar" id="signalSidebar" aria-label="外資轉買選股側邊欄">
+      <div class="signal-sticky">
+        <div class="panel-index">FOREIGN FLOW SCREENER</div>
+        <h2>外資由賣轉買</h2>
+        <p class="signal-description">先賣超 → 連續 3 個交易日買超 → 最新交易日成交量增加至少 20%</p>
+        <div id="screenStatus" class="screen-hint" role="status">正在載入市場選股結果…</div>
+        <div id="screenList" class="screen-list"></div>
+        <p class="signal-source">依證交所及櫃買中心公開盤後資料篩選；最新可用日期以資料顯示為準。不含 ETF。</p>
+        <div id="apiStatus" class="signal-api-status">外部個股 API：檢查中…</div>
+      </div>
+    </aside>
   </div>
 </body>
 </html>
