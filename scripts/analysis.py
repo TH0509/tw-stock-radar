@@ -122,8 +122,18 @@ def build_stock(code, name, raw_prices, raw_institutions):
     points = []
     for i, row in enumerate(rows):
         matched = inst.get(dates[i])
+        opening = number(row.get('open'))
+        high = number(row.get('max', row.get('high')))
+        low = number(row.get('min', row.get('low')))
+        # Never invent K-line open/high/low from closing prices.
+        valid_ohlc = (None not in (opening, high, low) and
+                      0 < low <= min(opening, prices[i]) <=
+                      max(opening, prices[i]) <= high)
         points.append({
             'date': dates[i], 'close': round_or_none(prices[i]),
+            'open': round_or_none(opening) if valid_ohlc else None,
+            'high': round_or_none(high) if valid_ohlc else None,
+            'low': round_or_none(low) if valid_ohlc else None,
             'ma5': round_or_none(ma5[i]), 'ma20': round_or_none(ma20[i]),
             'ma60': round_or_none(ma60[i]), 'roc5': round_or_none(roc5[i]),
             'roc20': round_or_none(roc20[i]), 'rsi14': round_or_none(rsis[i]),

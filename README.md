@@ -106,3 +106,28 @@ AGENTS.md
 - [Codex 自訂子代理](https://developers.openai.com/codex/subagents)
 - [Codex Skills](https://developers.openai.com/codex/build-skills)
 - [GitHub Pages 發布](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
+
+
+## 2026-10 全市場 K 線與自選股資料覆蓋（新版）
+
+**固定需求**：搜尋或追蹤任何當期有官方上市日行情的股票，都應嘗試取得與預設六檔**相同欄位**的詳細資料：OHLC、成交量、MA5/20/60、ROC5/20、RSI14、外資、投信、自營商與 1/5/20 日累計。網站提供 5D、1M、3M、6M、全部切換，股價圖必須畫真實開高低收 K 棒，不得用收盤價填充開高低價格。
+
+### 架構
+
+- 每次 Actions 執行 `python scripts/market_history.py`，按日從 TWSE MI_INDEX/T86、TPEx dailyQuotes/dailyTrade 下載各股行情與法人數據，預設向前回補 238 個日曆日。
+- `.cache/market-history` 透過 GitHub Actions cache 於多次執行間保留，往後僅抓尚未快取的日期，減少免費 API 呼叫量。
+- 產生 `docs/data/screener.json` 作為**市場索引**與選股結果，再逐檔輸出 `docs/data/market/股票代號.json`。網站搜尋時不會一次載入全市場歷史，而是在點擊個股時抓取其完整分析檔。
+- 原先六檔的 FinMind 420 天歷史，若能成功更新則保留為較長時段備用資料。
+- 所有日期欄位、開高低收、成交量與三大法人均來自原始日資料；無歷史、停牌或資料缺漏時保持 null，不應合成 K 棒。
+- 原始價未除權息還原；ROC 不等於含股利的總報酬。每檔「6 個月」一般需約 132 個交易日，資料回補完成前可能不足，網站應據實標示。
+- **免費官方資料取得不能保證所有股票永遠完整。** 個別停牌、新上市、API 限流、官方欄位變更、休市與歷史缺漏均可能造成資料不足；上線前需在 GitHub Actions 查看掃描回補數量及 `screener.json.coverage`。若是需要每檔股票保證完整、即時、跨平台自選股同步，應改用具 SLA 的授權資料服務搭配伺服器資料庫。
+- 請留意政府公開資料的使用條款、來源標示和 FinMind 授權，勿把未獲授權的付費資料公開重新散布。
+
+### 測試
+
+```bash
+python -m unittest discover -s tests -v
+node --check docs/app.js
+```
+
+合併本 PR 後在 Actions 手動執行「台股收盤分析與網站部署」。首次回補涉及數百個公開 API 請求，可能較慢；若來源限流，仍會顯示真實的資料可用天數，不能把舊資料當成最新行情。

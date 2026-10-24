@@ -6,9 +6,10 @@
   <meta name="color-scheme" content="dark">
   <meta name="description" content="台灣個股動能、RSI、均線與三大法人買賣超追蹤儀表板">
   <title>台股 Radar｜個股動能與三大法人追蹤</title>
-  <link rel="stylesheet" href="./style.css?v=3">
+  <link rel="stylesheet" href="./style.css?v=5">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" defer></script>
-  <script src="./app.js?v=4" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js" defer></script>
+  <script src="./app.js?v=5" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -62,8 +63,8 @@
         </section>
 
         <section class="panel large-panel">
-          <div class="panel-heading"><div><div class="panel-index">01 / MOMENTUM</div><h2>股價與均線走勢</h2><p>原始收盤價與 MA5、MA20、MA60 均線</p></div><div class="period-tabs" id="periodTabs" role="group" aria-label="圖表期間"><button class="tab" data-period="22">1M</button><button class="tab active" data-period="66">3M</button><button class="tab" data-period="132">6M</button><button class="tab" data-period="0">全部</button></div></div>
-          <div class="chart-wrapper"><canvas id="priceChart" aria-label="價格與均線圖" role="img"></canvas></div>
+          <div class="panel-heading"><div><div class="panel-index">01 / MOMENTUM</div><h2>每日 K 線與均線走勢</h2><p>每日開盤、最高、最低、收盤（紅漲綠跌），疊加 MA5、MA20、MA60</p></div><div class="period-tabs" id="periodTabs" role="group" aria-label="圖表期間"><button class="tab" data-period="5">5D</button><button class="tab" data-period="22">1M</button><button class="tab active" data-period="66">3M</button><button class="tab" data-period="132">6M</button><button class="tab" data-period="0">全部</button></div></div>
+          <div class="chart-wrapper"><div id="priceChart" class="candle-pane" role="img" aria-label="每日開高低收 K 線圖"></div></div>
           <div class="chart-note"><span class="info-dot">i</span> 動能判斷：收盤價、MA5、MA20 與 ROC20 的相對關係，並非買賣指令。</div>
         </section>
 

@@ -26,6 +26,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 55
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -36,12 +37,26 @@ jobs:
           python-version: '3.12'
       - name: 分析程式測試
         run: python -m unittest discover -s tests -v
-      - name: 更新台股資料
+      - name: 還原市場歷史快取
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/market-history
+          key: market-history-v2-${{ github.run_id }}
+          restore-keys: |
+            market-history-v2-
+      - name: 擷取全市場歷史 OHLC／法人資料並建立獨立股票檔
+        run: python scripts/market_history.py --days 238
+      - name: 保存累積歷史快取供下次增量更新
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/market-history
+          key: market-history-v2-${{ github.run_id }}
+      - name: 補充原始六檔較長的 FinMind 歷史
+        continue-on-error: true
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/update.py
-      - name: 掃描上市股票外資反轉及量能
-        run: python scripts/scanner.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

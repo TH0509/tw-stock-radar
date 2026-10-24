@@ -1,0 +1,29 @@
+name: 股票資料與前端檢查
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python 編譯檢查
+        run: python -m compileall -q scripts tests
+      - name: 分析與行情測試
+        run: python -m unittest discover -s tests -v
+      - name: JavaScript 語法檢查
+        run: node --check docs/app.js
+      - name: 檢查 5 日與 K 線元件
+        run: |
+          grep -q 'data-period="5"' docs/index.html
+          grep -q 'lightweight-charts' docs/index.html
+          grep -q 'addCandlestickSeries' docs/app.js

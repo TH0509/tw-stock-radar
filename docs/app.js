@@ -3,6 +3,9 @@ const $ = (id) => document.getElementById(id);
 let payload = null;
 let selected = null;
 let period = 66;
+let candleChart = null;
+let candleObserver = null;
+let latestSelectionRequest = 0;
 let charts = [];
 const fmt = (n, max = 2) => n === null || n === undefined || !Number.isFinite(Number(n)) ? '—' : Number(n).toLocaleString('zh-TW', {maximumFractionDigits:max});
 const signed = (v, suffix = '') => v === null || v === undefined ? '—' : `${Number(v) > 0 ? '+' : ''}${fmt(v)}${suffix}`;
@@ -12,7 +15,11 @@ function paintNumber(id, v, suffix = '', prefixSign = false) {
   el.classList.remove('up', 'down'); if (v != null) el.classList.add(tone(v));
 }
 function notice(message) { const el = $('status'); el.textContent = message; el.hidden = !message; }
-function clearCharts() { charts.forEach(c => c.destroy()); charts = []; }
+function clearCharts() {
+  charts.forEach(c => c.destroy()); charts = [];
+  if(candleObserver){candleObserver.disconnect();candleObserver=null;}
+  if(candleChart){candleChart.remove();candleChart=null;}
+}
 function axisOptions(label, position = 'left') {
   return {position, grid:{color:'rgba(104,137,182,.12)'}, border:{display:false}, ticks:{color:'#8497b2',font:{size:10},maxTicksLimit:5}, title:{display:!!label,text:label,color:'#6683a4',font:{size:10}}, beginAtZero:false};
 }
@@ -60,14 +67,53 @@ function select(code) {
   $('tableCaption').textContent=`法人資料截至 ${s.last_institution_date || '—'} · 單位：張`;
   renderCharts(s); renderTable(s);
 }
+function renderCandleChart(points) {
+  const el=$('priceChart');el.replaceChildren();
+  const candles=points.filter(p=>[p.open,p.high,p.low,p.close].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>0))
+    .map(p=>({time:p.date,open:p.open,high:p.high,low:p.low,close:p.close}));
+  if(!candles.length){
+    el.textContent='此期間缺少有效的開盤、最高、最低、收盤價，無法繪製真實 K 線。';
+    el.classList.add('missing-candles');return;
+  }
+  el.classList.remove('missing-candles');
+  if(typeof LightweightCharts==='undefined'){
+    el.textContent='K 線套件無法載入，請檢查網路或瀏覽器限制。';return;
+  }
+  const style={layout:{background:{type:'solid',color:'#111b2b'},textColor:'#a1b3c9'},
+    grid:{vertLines:{color:'#1b2a3e'},horzLines:{color:'#253246'}},
+    crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
+    rightPriceScale:{borderColor:'#3b4d63'},timeScale:{borderColor:'#3b4d63',timeVisible:false},
+    localization:{locale:'zh-TW'},
+    width:Math.max(el.clientWidth,320),height:Math.max(el.clientHeight,300)};
+  candleChart=LightweightCharts.createChart(el,style);
+  // Taiwan market color convention: rising red, falling green.
+  const price=candleChart.addCandlestickSeries({
+    upColor:'#ff7888',downColor:'#43c9a6',wickUpColor:'#ff7888',
+    wickDownColor:'#43c9a6',borderVisible:false,priceLineVisible:false});
+  price.setData(candles);
+  for(const [key,name,color] of [['ma5','MA5','#5ad5af'],['ma20','MA20','#e9c57d'],['ma60','MA60','#ac92ef']]){
+    const data=points.filter(p=>Number.isFinite(p[key])).map(p=>({time:p.date,value:p[key]}));
+    if(!data.length)continue;
+    const series=candleChart.addLineSeries({title:name,color,lineWidth:2,priceLineVisible:false,
+      lastValueVisible:false,crosshairMarkerVisible:false});
+    series.setData(data);
+  }
+  candleChart.timeScale().fitContent();
+  if(typeof ResizeObserver!=='undefined'){
+    candleObserver=new ResizeObserver(entries=>{
+      if(!candleChart)return;
+      const r=entries[0].contentRect;
+      if(r.width>0)candleChart.applyOptions({width:r.width,height:Math.max(r.height,300)});
+    });
+    candleObserver.observe(el);
+  }
+}
 function renderCharts(s) {
   clearCharts();
   const points=period===0?s.points:s.points.slice(-period);
+  renderCandleChart(points);
   const labels=points.map(p=>p.date.slice(5));
   const line=(label,key,color,extra={})=>({label, data:points.map(p=>p[key]), borderColor:color,backgroundColor:color,pointRadius:0,borderWidth:2,spanGaps:false,tension:.2,...extra});
-  createChart('priceChart',{type:'line',data:{labels,datasets:[
-    line('收盤價','close','#8bb6ff',{borderWidth:2.6}),line('MA5','ma5','#50caa3'),line('MA20','ma20','#e9c57d'),line('MA60','ma60','#ac92ef')]},
-    options:{...chartBase,plugins:chartBase.plugins,scales:{...chartBase.scales,y:axisOptions('新臺幣')}}});
   createChart('momentumChart',{type:'line',data:{labels,datasets:[
     line('ROC20 (%)','roc20','#7eafff',{yAxisID:'y'}),line('RSI14','rsi14','#e9c57d',{yAxisID:'rsi'})]},
     options:{...chartBase,scales:{x:chartBase.scales.x,y:axisOptions('ROC %'),rsi:{...axisOptions('RSI','right'),min:0,max:100,grid:{display:false}}}}});
@@ -121,12 +167,12 @@ function addCode(code){
   if(!/^\d{4,6}$/.test(code)){alert('請輸入4至6碼股票代號');return;}
   if(!userList.includes(code)){if(userList.length>=200){alert('自選股上限200檔');return;}userList.push(code);saveCodes();}
   renderList();renderScreen();
-  selectOrMissing(code);
+  void selectOrMissing(code);
   $('watchCode').value='';
 }
 function removeCode(code){
   userList=userList.filter(x=>x!==code);saveCodes();
-  if(selected===code){selected=null;if(userList.length)selectOrMissing(userList[0]);else{$('stockName').textContent='目前沒有自選股';clearCharts();}}
+  if(selected===code){selected=null;if(userList.length)void selectOrMissing(userList[0]);else{$('stockName').textContent='目前沒有自選股';clearCharts();}}
   renderList();renderScreen();
 }
 function renderList(){
@@ -141,7 +187,7 @@ function renderList(){
    const icon=document.createElement('span');icon.className='ticker-icon';icon.textContent=code.slice(-2);
    const title=document.createElement('span');title.className='ticker-name';title.textContent=name;
    const sub=document.createElement('span');sub.className='ticker-sub';sub.textContent=code;title.append(sub);
-   button.append(icon,title);button.onclick=()=>selectOrMissing(code);
+   button.append(icon,title);button.onclick=()=>void selectOrMissing(code);
    const remove=document.createElement('button');remove.className='ticker-remove';remove.type='button';remove.textContent='×';remove.title='移除自選股';remove.onclick=()=>removeCode(code);
    row.append(button,remove);list.append(row);
  }
@@ -183,19 +229,48 @@ function makeCompact(entry){
    signal,last_price_date:last.date,last_institution_date:available.at(-1)?.date||null,market:entry.market||'TWSE',
    flows,snapshot_only:true};
 }
-function selectOrMissing(code){
- const c=$('coverageNote');c.hidden=true;
- if(payload?.stocks?.[code]){select(code);if(payload.stocks[code].snapshot_only){c.hidden=false;c.textContent=`此股可用 ${payload.stocks[code].points.length} 個交易日的盤後資料；部分法人日期或 MA60 可能不足，缺少的指標以「—」表示。`;}return;}
- selected=code;renderList();clearCharts();$('stockName').textContent=code+'｜尚無分析資料';$('stockCode').textContent=code;
- $('lastDate').textContent='資料不足';$('signal').textContent='資料不足';
- for(const id of ['vClose','vRoc','vRsi','vFlow'])paintNumber(id,null);
- $('instTable').replaceChildren();c.hidden=false;c.textContent='已加入自選股，但目前未取得此代號的官方市場資料。網站不會產生虛構股價。';
+async function selectOrMissing(code){
+  const myRequest=++latestSelectionRequest;
+  const c=$('coverageNote');c.hidden=true;
+  let details=payload?.stocks?.[code];
+  const index=marketData?.stocks?.[code];
+  if(!details && index?.has_detail){
+    c.hidden=false;c.textContent='正在取得 '+code+' 的完整歷史行情及三大法人資料…';
+    selected=code;renderList();
+    try{
+      const res=await fetch('./data/market/'+encodeURIComponent(code)+'.json?v='+Date.now(),{cache:'no-store'});
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const obj=await res.json();
+      if(obj.code!==code||!Array.isArray(obj.points)||!obj.points.length)throw new Error('股票分析資料格式不正確');
+      if(!payload)payload={stocks:{}};
+      payload.stocks[code]=obj;details=obj;
+    }catch(err){
+      if(myRequest!==latestSelectionRequest)return;
+      c.hidden=false;c.textContent='無法取得 '+code+' 歷史資料：'+err.message+'。請確認 GitHub Actions 的全市場回補結果。';
+    }
+  }
+  if(myRequest!==latestSelectionRequest)return;
+  if(details){
+    select(code);
+    const n=details.points?.length||0;
+    if(n<132 || details.last_institution_date==null){
+      c.hidden=false;
+      c.textContent='目前可用 '+n+' 個交易日的行情；6 個月約需 132 日，歷史回補或法人資料尚可能不足。缺少的指標保留為「—」，不會假造。';
+    }else c.hidden=true;
+    return;
+  }
+  selected=code;renderList();clearCharts();$('stockName').textContent=code+'｜尚無完整行情';
+  $('stockCode').textContent=code;$('lastDate').textContent='尚無有效歷史資料';
+  $('signal').textContent='資料不足';
+  for(const id of ['vClose','vRoc','vRsi','vFlow'])paintNumber(id,null);
+  $('instTable').replaceChildren();c.hidden=false;
+  c.textContent='已加入自選股，但市場歷史資料尚未回補此股票，無法展示相同的分析欄位。';
 }
 function renderScreen(){
  const body=$('screenTable');body.replaceChildren();
  if(marketData?.status!=='ok'){$('screenStatus').textContent='市場掃描暫時無法使用：'+(marketData?.error||'資料尚未發布')+'。不代表沒有符合條件的股票。';return;}
  const codes=marketData.matches||[];
- $('screenStatus').textContent='上市／上櫃個股最新資料：'+marketData.date+'｜符合條件 '+codes.length+' 檔；排除 ETF（範圍依官方資料供應情況）';
+ $('screenStatus').textContent='上市／上櫃個股最新資料：'+marketData.date+'｜符合條件 '+codes.length+' 檔；不含 ETF；實際覆蓋依官方行情資料';
  if(!codes.length){const row=body.insertRow(),cell=row.insertCell();cell.colSpan=4;cell.textContent='目前沒有符合全部條件的上市股票';return;}
  for(const code of codes){
    const item=marketData.stocks[code];if(!item)continue;
@@ -217,11 +292,11 @@ async function loadV2(){
  }catch(e){marketData={status:'unavailable',error:String(e),stocks:{},matches:[]};}
  if(userList===null){userList=savedCodes();if(userList===null){userList=Object.keys(payload?.stocks||{});saveCodes();}}
  for(const [code,item] of Object.entries(marketData?.stocks||{})){
-  if(!payload.stocks[code]){const record=makeCompact(item);if(record)payload.stocks[code]=record;}
+  if(!payload.stocks[code] && !item.has_detail){const record=makeCompact(item);if(record)payload.stocks[code]=record;}
  }
  renderScreen();renderList();
  const code=userList.includes(selected)?selected:userList[0];
- if(code)selectOrMissing(code);else{$('stockName').textContent='請新增自選股票';clearCharts();}
+ if(code)void selectOrMissing(code);else{$('stockName').textContent='請新增自選股票';clearCharts();}
 }
 $('watchForm').addEventListener('submit',e=>{e.preventDefault();addCode($('watchCode').value.trim());});
 loadV2();
