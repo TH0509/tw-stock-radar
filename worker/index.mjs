@@ -113,17 +113,39 @@ export default {async fetch(request,env,ctx){
  if(url.pathname==='/api/health')return json({status:'ok',source:'FinMind',now:new Date().toISOString()},200,origin);
  const match=/^\/api\/stock\/(\d{4,6})$/.exec(url.pathname);
  if(!match)return json({error:'找不到 API 路徑'},404,origin);
- const code=match[1],key=new Request(url.origin+url.pathname);
+ const code=match[1],force=url.searchParams.get('refresh')==='1';
+ // Manual refresh bypasses the normal four-hour cache, but is throttled at the edge
+ // to one upstream refresh per stock per five minutes to protect the FinMind quota.
+ const standardKey=new Request(url.origin+url.pathname);
+ const refreshKey=new Request(url.origin+url.pathname+'?manual=1');
+ const key=force?refreshKey:standardKey;
  const cached=await caches.default.match(key);
  if(cached){const response=new Response(cached.body,cached);
-  response.headers.set('access-control-allow-origin',origin);response.headers.set('vary','Origin');return response;}
+  response.headers.set('access-control-allow-origin',origin);
+  response.headers.set('vary','Origin');
+  response.headers.set('access-control-expose-headers','x-radar-cache-status');
+  response.headers.set('x-radar-cache-status',force?'manual-refresh-cache':'regular-cache');
+  return response;}
  const end=new Date().toISOString().slice(0,10);
  const start=new Date(Date.now()-430*86400000).toISOString().slice(0,10);
  try{
   const [p,i]=await Promise.all([
    getDataset('TaiwanStockPrice',code,start,end,env.FINMIND_TOKEN),
    getDataset('TaiwanStockInstitutionalInvestorsBuySellWide',code,start,end,env.FINMIND_TOKEN)]);
-  const response=json(buildStock(code,p,i),200,origin,14400);
-  ctx.waitUntil(caches.default.put(key,response.clone()));return response;
+  const stock=buildStock(code,p,i);
+  const response=json(stock,200,origin,force?300:14400);
+  response.headers.set('access-control-expose-headers','x-radar-cache-status');
+  response.headers.set('x-radar-cache-status','upstream-fetched');
+  // Update normal cache after a forced refresh, so next ordinary stock visit stays fresh.
+  if(force){
+    const regular=json(stock,200,origin,14400);
+    ctx.waitUntil(Promise.all([
+      caches.default.put(refreshKey,response.clone()),
+      caches.default.put(standardKey,regular.clone())
+    ]));
+  }else{
+    ctx.waitUntil(caches.default.put(standardKey,response.clone()));
+  }
+  return response;
  }catch(e){return json({error:String(e?.message||'來源暫時無法取得'),code},502,origin);}
 }};
