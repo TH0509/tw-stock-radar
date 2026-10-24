@@ -230,60 +230,100 @@ function makeCompact(entry){
    flows,snapshot_only:true};
 }
 async function selectOrMissing(code){
-  const myRequest=++latestSelectionRequest;
-  const c=$('coverageNote');c.hidden=true;
-  let details=payload?.stocks?.[code];
-  const index=marketData?.stocks?.[code];
-  if(!details && index?.has_detail){
-    c.hidden=false;c.textContent='正在取得 '+code+' 的完整歷史行情及三大法人資料…';
-    selected=code;renderList();
-    try{
-      const res=await fetch('./data/market/'+encodeURIComponent(code)+'.json?v='+Date.now(),{cache:'no-store'});
-      if(!res.ok)throw new Error('HTTP '+res.status);
-      const obj=await res.json();
-      if(obj.code!==code||!Array.isArray(obj.points)||!obj.points.length)throw new Error('股票分析資料格式不正確');
-      if(!payload)payload={stocks:{}};
-      payload.stocks[code]=obj;details=obj;
-    }catch(err){
-      if(myRequest!==latestSelectionRequest)return;
-      c.hidden=false;c.textContent='無法取得 '+code+' 歷史資料：'+err.message+'。請確認 GitHub Actions 的全市場回補結果。';
-    }
-  }
-  if(myRequest!==latestSelectionRequest)return;
-  if(details){
-    select(code);
-    const n=details.points?.length||0;
-    if(n<132 || details.last_institution_date==null){
-      c.hidden=false;
-      c.textContent='目前可用 '+n+' 個交易日的行情；6 個月約需 132 日，歷史回補或法人資料尚可能不足。缺少的指標保留為「—」，不會假造。';
-    }else c.hidden=true;
-    return;
-  }
-  selected=code;renderList();clearCharts();$('stockName').textContent=code+'｜尚無完整行情';
-  $('stockCode').textContent=code;$('lastDate').textContent='尚無有效歷史資料';
-  $('signal').textContent='資料不足';
-  for(const id of ['vClose','vRoc','vRsi','vFlow'])paintNumber(id,null);
-  $('instTable').replaceChildren();c.hidden=false;
-  c.textContent='已加入自選股，但市場歷史資料尚未回補此股票，無法展示相同的分析欄位。';
+ const requestId=++latestSelectionRequest;
+ const noticeBox=$('coverageNote');noticeBox.hidden=false;
+ const staticDetails=payload?.stocks?.[code];
+ const index=marketData?.stocks?.[code];
+ let details=null,remoteError='';
+ const base=String(window.RADAR_API_BASE||'').trim().replace(/\/+$/,'');
+ selected=code;renderList();
+ if(base){
+  noticeBox.textContent='正在向外部金融資料 API 查詢 '+code+' 的 OHLC、MA 與三大法人歷史…';
+  try{
+   const r=await fetch(base+'/api/stock/'+encodeURIComponent(code),{headers:{accept:'application/json'}});
+   const response=await r.json();
+   if(!r.ok)throw new Error(response?.error||'HTTP '+r.status);
+   if(response.code!==code||!Array.isArray(response.points)||!response.points.length)
+    throw new Error('遠端股票資料不完整');
+   response.name=index?.name||staticDetails?.name||code;
+   details=response;
+   if(!payload)payload={stocks:{}};
+   payload.stocks[code]=details;
+  }catch(err){remoteError=String(err.message||err);}
+ }
+ if(requestId!==latestSelectionRequest)return;
+ if(!details&&staticDetails&&!staticDetails.snapshot_only)details=staticDetails;
+ if(!details&&index?.has_detail){
+  noticeBox.textContent='正在讀取上次部署的股票歷史快取…';
+  try{
+   const r=await fetch('./data/market/'+encodeURIComponent(code)+'.json?v=6',{cache:'no-store'});
+   if(!r.ok)throw new Error('HTTP '+r.status);
+   const obj=await r.json();
+   if(obj.code!==code||!Array.isArray(obj.points)||!obj.points.length)
+    throw new Error('快取資料格式不正確');
+   obj.name=index.name||obj.name;
+   if(!payload)payload={stocks:{}};
+   payload.stocks[code]=obj;details=obj;
+  }catch(err){remoteError+=(remoteError?'；':'')+'歷史快取：'+String(err.message||err);}
+ }
+ if(!details&&staticDetails)details=staticDetails;
+ if(requestId!==latestSelectionRequest)return;
+ if(details){
+  select(code);
+  const valid=details.points?.filter(p=>p.foreign!=null&&p.trust!=null&&p.dealer!=null).length||0;
+  const total=details.points?.length||0;
+  const cautions=[];
+  if(remoteError)cautions.push('即時外部 API 暫時不可用，改顯示上次部署資料：'+remoteError);
+  if(total<132)cautions.push('股價歷史只有 '+total+' 個交易日，3／6 月走勢可能不完整');
+  if(valid<15)cautions.push('三大法人完整資料目前只有 '+valid+' 個交易日（目標至少 15 日）');
+  if(cautions.length){noticeBox.hidden=false;noticeBox.textContent=cautions.join('。')+'。缺值不會補成零。';}
+  else noticeBox.hidden=true;
+  return;
+ }
+ selected=code;renderList();clearCharts();
+ $('stockName').textContent=code+'｜資料無法取得';$('stockCode').textContent=code;
+ $('lastDate').textContent='資料不足';$('signal').textContent='資料不足';
+ for(const id of ['vClose','vRoc','vRsi','vFlow'])paintNumber(id,null);
+ $('instTable').replaceChildren();
+ noticeBox.hidden=false;
+ noticeBox.textContent='找不到 '+code+' 的 OHLC／法人資料'+(remoteError?'：'+remoteError:'。請先部署外部 API 或檢查市場回補')+'。';
 }
 function renderScreen(){
- const body=$('screenTable');body.replaceChildren();
- if(marketData?.status!=='ok'){$('screenStatus').textContent='市場掃描暫時無法使用：'+(marketData?.error||'資料尚未發布')+'。不代表沒有符合條件的股票。';return;}
- const codes=marketData.matches||[];
- $('screenStatus').textContent='上市／上櫃個股最新資料：'+marketData.date+'｜符合條件 '+codes.length+' 檔；不含 ETF；實際覆蓋依官方行情資料';
- if(!codes.length){const row=body.insertRow(),cell=row.insertCell();cell.colSpan=4;cell.textContent='目前沒有符合全部條件的上市股票';return;}
- for(const code of codes){
-   const item=marketData.stocks[code];if(!item)continue;
-   const row=body.insertRow();row.insertCell().textContent=code+' '+item.name;
-   row.insertCell().textContent=item.days.slice(1).map(d=>signed(d.foreign)).join(' / ');
-   row.insertCell().textContent=signed(item.volume_change_pct,'%');
-   const button=document.createElement('button');button.type='button';button.className='screen-add';
-   button.textContent=userList?.includes(code)?'✓ 已追蹤':'＋ 追蹤';
-   button.onclick=()=>userList?.includes(code)?removeCode(code):addCode(code);
-   row.insertCell().append(button);
+ const container=$('screenList');container.replaceChildren();
+ if(marketData?.status!=='ok'){
+  $('screenStatus').textContent='市場選股暫時無法使用：'+(marketData?.error||'尚未發布資料')+'。不代表沒有符合條件的股票。';
+  return;
+ }
+ const matches=marketData.matches||[];
+ $('screenStatus').textContent='最新：'+(marketData.date||'未知日期')+'｜符合 '+matches.length+' 檔';
+ if(!matches.length){
+  const p=document.createElement('p');p.className='screen-hint';p.textContent='這期沒有符合全部篩選條件的股票。';
+  container.append(p);return;
+ }
+ for(const code of matches){
+  const stock=marketData.stocks?.[code];if(!stock)continue;
+  const card=document.createElement('div');card.className='signal-card';
+  const top=document.createElement('div');top.className='signal-card-head';
+  const title=document.createElement('strong');title.textContent=code+' '+stock.name;
+  const button=document.createElement('button');button.type='button';button.className='screen-add';
+  button.textContent=userList?.includes(code)?'✓ 已追蹤':'＋ 加入';
+  button.onclick=()=>userList?.includes(code)?removeCode(code):addCode(code);
+  top.append(title,button);
+  const details=document.createElement('div');details.className='signal-card-data';
+  details.textContent='最新量增 '+signed(stock.volume_change_pct,'%');
+  const days=document.createElement('div');days.className='signal-flow-days';
+  days.textContent=(stock.days||[]).slice(-3).map(p=>signed(p.foreign)).join('／')+' 張';
+  card.append(top,details,days);container.append(card);
  }
 }
+function indicateLiveStatus(){
+ const el=$('apiStatus');if(!el)return;
+ const base=String(window.RADAR_API_BASE||'').trim();
+ el.textContent=base?'外部金融 API：已設定（查詢時即時連線，依上游快取）':
+  '外部金融 API：尚未設定，目前僅顯示已發布的歷史快取';
+}
 async function loadV2(){
+ indicateLiveStatus();
  await load();
  try{
    const r=await fetch('./data/screener.json?v='+Date.now(),{cache:'no-store'});
