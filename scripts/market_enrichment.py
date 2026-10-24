@@ -3,7 +3,7 @@ import json,time,re
 from datetime import datetime,timedelta,timezone
 from urllib.parse import urlencode
 from urllib.request import Request,urlopen
-from scanner import get_json,prices,fetch,snapshot,qualifies,BASE
+from scanner import prices,fetch
 from analysis import sma,roc,rsi_wilder
 
 def otc_json(path,day,**extra):
