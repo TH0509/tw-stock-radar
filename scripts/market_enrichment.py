@@ -80,7 +80,7 @@ def enrich(base):
             x=all_data.get(code)
             if not x or not x.get("close"):continue
             y=institution.get(day,{}).get(code)
-            row={"date":day,"close":x["close"],"volume_shares":x["volume_shares"],
+            row={"date":day,"close":x["close"],"volume_shares":x.get("volume_shares",x.get("volume")),
                  "foreign":y["foreign"] if y else None,
                  "trust":y.get("trust") if y else None,
                  "dealer":y.get("dealer") if y else None}
