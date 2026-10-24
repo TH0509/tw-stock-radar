@@ -89,7 +89,7 @@ jobs:
         run: |
           python - <<'PY'
           import json, os, pathlib
-          url = os.environ.get("RADAR_API_BASE_URL", "").rstrip("/")
+          url = (os.environ.get("RADAR_API_BASE_URL") or "https://tw-radar-stock-api.oliverchang6675-265.workers.dev").rstrip("/")
           if url and not url.startswith("https://"):
               raise SystemExit("RADAR_API_BASE_URL 必須是 https 網址")
           pathlib.Path("docs/api-config.js").write_text(
