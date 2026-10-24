@@ -8,7 +8,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -65,10 +65,13 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("docs/data/update-status.json"))
     args = parser.parse_args()
     now = datetime.now(LOCAL_TIMEZONE)
-    target = args.date or now.date().isoformat()
+    # Tuesday–Saturday morning: retry yesterday's trading-day publication.
+    # This also covers delayed Friday releases without waiting until Monday.
+    fallback = now.date() - timedelta(days=1) if now.hour < 12 else now.date()
+    target = args.date or fallback.isoformat()
     if args.mode == "probe":
         # Return a normal skip on weekends or market holidays; avoid failed CI noise.
-        result = check_day(target) if now.weekday() < 5 or args.date else {
+        result = check_day(target) if date.fromisoformat(target).weekday() < 5 else {
             "ready": False, "date": target, "counts": {}, "errors": {"calendar": "週末休市"}}
         emit_outputs(os.getenv("GITHUB_OUTPUT"), {"ready": str(result["ready"]).lower(),
                   "trading_date": target})
