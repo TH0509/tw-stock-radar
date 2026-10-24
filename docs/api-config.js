@@ -1,0 +1,1 @@
+// GitHub Actions writes the Worker URL from RADAR_API_BASE_URL repository variable.\nwindow.RADAR_API_BASE = '';\n
