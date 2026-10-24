@@ -39,14 +39,14 @@ def prices(payload):
         tables.append({"fields":payload["fields"],"data":payload["data"]})
     for table in tables:
         try:
-            h=table["fields"];c=idx(h,"證券代號");v=idx(h,"成交股數");p=idx(h,"收盤價")
+            h=table["fields"];c=idx(h,"證券代號");v=idx(h,"成交股數");p=idx(h,"收盤價");n=idx(h,"證券名稱")
         except (KeyError,ValueError):continue
         result={}
         for row in table.get("data",[]):
             code=str(row[c]).strip()
             volume=number(row[v])
             if re.fullmatch("[1-9][0-9]{3}",code) and volume is not None:
-                result[code]={"volume":volume,"close":number(row[p])}
+                result[code]={"volume":volume,"close":number(row[p]),"name":str(row[n]).strip()}
         if len(result)>20:return result
     return {}
 def qualifies(days):
@@ -90,10 +90,16 @@ def main():
             price[dt]=prices(fetch("afterTrading/MI_INDEX",dt,type="ALLBUT0999"))
             if not price[dt]:raise RuntimeError("缺少成交量："+dt)
         result=snapshot(days,price)
+        try:
+            from market_enrichment import enrich
+            result=enrich(result)
+        except Exception as e:
+            result["enrichment_error"]=str(e)
+            print("市場個股歷史資料擴充失敗，保留四日篩選結果：",e)
     except Exception as e:
         result={"status":"unavailable","error":str(e),"date":None,"stocks":{},"matches":[]}
     result["generated_at"]=datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds")
     out.parent.mkdir(exist_ok=True,parents=True)
     out.write_text(json.dumps(result,ensure_ascii=False),encoding="utf-8")
-    print("上市掃描",result["status"],len(result["matches"]))
+    print("上市與上櫃掃描",result["status"],len(result["matches"]))
 if __name__=="__main__":main()
