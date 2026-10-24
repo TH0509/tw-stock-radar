@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="台灣個股動能、RSI、均線與三大法人買賣超追蹤儀表板">
+  <title>台股 Radar｜個股動能與三大法人追蹤</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="./" aria-label="台股 Radar 首頁">
+        <span class="brand-mark">R<span class="brand-dot">●</span></span>
+        <span class="brand-text">台股 <strong>RADAR</strong><small>市場趨勢觀測站</small></span>
+      </a>
+      <div class="side-head"><span>追蹤清單</span><span class="side-count" id="tickerCount">—</span></div>
+      <label class="search-wrap" for="search"><span>⌕</span>
+        <input id="search" type="search" autocomplete="off" placeholder="搜尋股票代號或名稱">
+      </label>
+      <div class="ticker-list" id="tickerList" aria-label="個股選擇清單"></div>
+      <div class="side-note">
+        <span class="green-signal">●</span> 收盤後自動更新
+        <p>預設台灣時間交易日 19:30 執行；實際部署可能延遲。</p>
+      </div>
+      <div class="side-footer">資料來源 <a href="https://finmind.github.io/" target="_blank" rel="noopener">FinMind ↗</a><br>教育研究用途・不構成投資建議</div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div class="eyebrow"><span class="online-dot"></span> TAIWAN EQUITY ANALYTICS <span class="crumb">/ 個股追蹤</span></div>
+        <div class="topbar-right"><span id="updateTime">讀取資料中…</span><button class="refresh-btn" id="refresh" type="button" title="重新取得已發布的資料">⟳ 重新載入</button></div>
+      </header>
+      <div class="body-inner">
+        <div id="status" class="notice" role="status" hidden></div>
+        <section class="hero">
+          <div class="hero-copy">
+            <div class="section-kicker">STOCK OVERVIEW <span class="kicker-line"></span> <span>台股個股分析</span></div>
+            <h1 id="stockName">個股動能 <span class="hero-soft">追蹤總覽</span></h1>
+            <div class="hero-meta"><span class="code-chip" id="stockCode">—</span><span id="lastDate">載入中</span><span class="signal-pill" id="signal">—</span></div>
+          </div>
+          <div class="hero-note"><span>分析頻率</span><strong>Daily <em>/ EOD</em></strong><small>每日收盤 · 非即時行情</small></div>
+        </section>
+
+        <section class="metric-grid" aria-label="關鍵指標">
+          <article class="metric"><span class="metric-label">還原收盤價 <span>PRICE</span></span><div class="metric-value" id="vClose">—</div><div class="metric-foot">已調整除權息 · 新臺幣</div></article>
+          <article class="metric"><span class="metric-label">20 日價格動能 <span>ROC 20</span></span><div class="metric-value" id="vRoc">—</div><div class="metric-foot">相對 20 個交易日前報酬率</div></article>
+          <article class="metric"><span class="metric-label">相對強弱指標 <span>RSI 14</span></span><div class="metric-value" id="vRsi">—</div><div class="metric-foot">Wilder 平滑法 · 0–100</div></article>
+          <article class="metric"><span class="metric-label">三大法人 5 日累計 <span>NET / 5D</span></span><div class="metric-value" id="vFlow">—</div><div class="metric-foot" id="flowDate">淨買賣超 · 單位：張</div></article>
+        </section>
+
+        <section class="panel large-panel">
+          <div class="panel-heading"><div><div class="panel-index">01 / MOMENTUM</div><h2>股價與均線走勢</h2><p>調整後收盤價與 MA5、MA20、MA60 均線</p></div><div class="period-tabs" id="periodTabs" role="group" aria-label="圖表期間"><button class="tab" data-period="22">1M</button><button class="tab active" data-period="66">3M</button><button class="tab" data-period="132">6M</button><button class="tab" data-period="0">全部</button></div></div>
+          <div class="chart-wrapper"><canvas id="priceChart" aria-label="價格與均線圖" role="img"></canvas></div>
+          <div class="chart-note"><span class="info-dot">i</span> 動能判斷：收盤價、MA5、MA20 與 ROC20 的相對關係，並非買賣指令。</div>
+        </section>
+
+        <div class="two-col">
+          <section class="panel"><div class="panel-heading"><div><div class="panel-index">02 / TECHNICAL</div><h2>動能與強弱指標</h2><p>ROC20（%）及 RSI14</p></div><div class="legend-mini"><span class="leg-blue">ROC20</span><span class="leg-yellow">RSI14</span></div></div><div class="chart-wrapper short"><canvas id="momentumChart" aria-label="ROC 與 RSI 圖" role="img"></canvas></div></section>
+          <section class="panel"><div class="panel-heading"><div><div class="panel-index">03 / INSTITUTIONAL</div><h2>三大法人每日買賣超</h2><p>外資（含外資自營商）、投信、自營商 · 張</p></div></div><div class="chart-wrapper short"><canvas id="instChart" aria-label="三大法人買賣超圖" role="img"></canvas></div></section>
+        </div>
+
+        <section class="panel table-panel"><div class="panel-heading"><div><div class="panel-index">04 / FLOW DETAILS</div><h2>最新法人買賣超明細</h2><p id="tableCaption">依資料最新日期排列 · 單位：張</p></div><span class="table-hint">買超為正 / 賣超為負</span></div>
+          <div class="table-scroll"><table><thead><tr><th>日期</th><th>外資</th><th>投信</th><th>自營商</th><th>三大法人合計</th></tr></thead><tbody id="instTable"><tr><td colspan="5">資料載入中…</td></tr></tbody></table></div>
+        </section>
+        <footer class="footer"><span>TAIWAN STOCK RADAR © 2026</span><span>價格為還原股價。資料依 FinMind 供應內容更新，無法保證即時或完整；請核對官方交易資料。</span></footer>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
