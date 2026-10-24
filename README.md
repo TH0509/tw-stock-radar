@@ -131,3 +131,18 @@ node --check docs/app.js
 ```
 
 合併本 PR 後在 Actions 手動執行「台股收盤分析與網站部署」。首次回補涉及數百個公開 API 請求，可能較慢；若來源限流，仍會顯示真實的資料可用天數，不能把舊資料當成最新行情。
+
+## 盤後自動更新（臺灣時間）
+
+- 每個週一至週五 **20:43、21:43、22:43、23:43**，GitHub Actions 嘗試檢查當天 **TWSE/TPEx 股價 OHLCV + 外資／投信／自營商** 是否已公開。若四份資料都可讀且有足夠有效筆數，才進行市場資料歷史回補、選股訊號更新與 GitHub Pages 發布。
+- 次日上午 **09:43（週二至週六）** 針對前一交易候選日補查，避免週五晚上資料延後卻等到下週。
+- 遇到休市、尚未公告、API 連線中斷，這次排程**略過發布**並等待下個時段；不會把舊數據標成最新。
+- 資料回補通過 `scripts/publication_gate.py --mode validate` 的二次驗證：要求上市與上櫃股價與法人最新交易日同為目標日。產出 `docs/data/update-status.json` 紀錄成功日期、查核時間。
+- 網站開啟時每 15 分鐘重新檢查目前個股及官方市場掃描。Cloudflare Worker 臺灣日期的 **20:00 前後** 分別使用不同快取版本，避免盤前查詢的四小時快取擋住盤後新資料；若當日股價或法人仍未到齊，改用 15 分鐘短快取，稍後再查。
+- 不是逐筆即時盤中報價；來源資料可能於初次公布後再調整，官方沒有保證固定分鐘完成。GitHub 排程也可能延遲，不保證整點立即上線。
+- 已連接之 Cloudflare Workers 公開網址預設為 `https://tw-radar-stock-api.oliverchang6675-265.workers.dev`。若 Worker 本身未部署、停用或 FinMind Token 未授權，網站會顯示資料來源錯誤，不代表伺服器能遠端修復。GitHub Actions 的 `RADAR_API_BASE_URL` 變數可覆寫這個預設值，Secret `FINMIND_TOKEN` **不能**放在公開網址或前端 JS。
+- GitHub Actions 自動更新需要 GitHub Actions 排程持續啟用。長期沒有儲存庫活動時，GitHub 可能停用公開儲存庫的排程流程；請定期檢查 Actions 執行紀錄。
+- 驗收方式：看 `docs/data/update-status.json` 的 `trading_date`，與 `docs/data/screener.json.coverage.TWSE/TPEx` 新股價與新法人日期比對。網站會在個股上方顯示實際 **股價／法人** 的最新日期；不是只看 JSON 的產生時間。
+
+主要盤後法人參考：FinMind 官方台股籌碼 API 說明，寬表更新預計週一至週五 20:00，實際以 API 回傳時間為準。
+
