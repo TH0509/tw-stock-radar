@@ -77,7 +77,7 @@ function renderCharts(s) {
 }
 function renderTable(s) {
   const body=$('instTable');body.replaceChildren();
-  const rows=s.points.filter(p=>p.total!==null).slice(-12).reverse();
+  const rows=s.points.filter(p=>p.foreign!==null||p.total!==null).slice(-12).reverse();
   if (!rows.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.textContent='目前沒有法人資料';tr.append(td);body.append(tr);return;}
   rows.forEach(p=>{
     const tr=document.createElement('tr');
@@ -130,34 +130,62 @@ function removeCode(code){
   renderList();renderScreen();
 }
 function renderList(){
-  const list=$('tickerList');list.replaceChildren();
-  const entries=userList||[];
-  const query=$('search').value.trim().toLowerCase();
-  $('tickerCount').textContent=String(entries.length);
-  for(const code of entries){
-    const stock=payload?.stocks?.[code],name=stock?.name||marketData?.stocks?.[code]?.name||'資料待補';
-    if(!code.includes(query)&&!name.toLowerCase().includes(query))continue;
-    const row=document.createElement('div');row.className='ticker-row';
-    const button=document.createElement('button');button.type='button';button.className='ticker'+(selected===code?' active':'');
-    const icon=document.createElement('span');icon.className='ticker-icon';icon.textContent=code.slice(-2);
-    const title=document.createElement('span');title.className='ticker-name';title.textContent=name;
-    const sub=document.createElement('span');sub.className='ticker-sub';sub.textContent=code;title.append(sub);
-    button.append(icon,title);button.onclick=()=>selectOrMissing(code);
-    const remove=document.createElement('button');remove.className='ticker-remove';remove.type='button';remove.textContent='×';remove.title='刪除自選股';remove.onclick=()=>removeCode(code);
-    row.append(button,remove);list.append(row);
-  }
+ const list=$('tickerList');list.replaceChildren();
+ const entries=userList||[];const query=$('search').value.trim().toLowerCase();
+ $('tickerCount').textContent=String(entries.length);
+ for(const code of entries){
+   const stock=payload?.stocks?.[code],name=stock?.name||marketData?.stocks?.[code]?.name||'資料待補';
+   if(query&&!code.includes(query)&&!name.toLowerCase().includes(query))continue;
+   const row=document.createElement('div');row.className='ticker-row';
+   const button=document.createElement('button');button.type='button';button.className='ticker'+(selected===code?' active':'');
+   const icon=document.createElement('span');icon.className='ticker-icon';icon.textContent=code.slice(-2);
+   const title=document.createElement('span');title.className='ticker-name';title.textContent=name;
+   const sub=document.createElement('span');sub.className='ticker-sub';sub.textContent=code;title.append(sub);
+   button.append(icon,title);button.onclick=()=>selectOrMissing(code);
+   const remove=document.createElement('button');remove.className='ticker-remove';remove.type='button';remove.textContent='×';remove.title='移除自選股';remove.onclick=()=>removeCode(code);
+   row.append(button,remove);list.append(row);
+ }
+ if(query){
+   const head=document.createElement('p');head.className='watch-tip';head.textContent='市場搜尋結果（點擊加入自選股）';list.append(head);
+   const hits=Object.values(marketData?.stocks||{}).filter(item=>(item.code.includes(query)||item.name.toLowerCase().includes(query))&&!entries.includes(item.code)).slice(0,20);
+   for(const item of hits){
+     const button=document.createElement('button');button.type='button';button.className='ticker market-result';
+     const icon=document.createElement('span');icon.className='ticker-icon';icon.textContent=item.code.slice(-2);
+     const name=document.createElement('span');name.className='ticker-name';name.textContent=item.name;
+     const detail=document.createElement('span');detail.className='ticker-sub';detail.textContent=item.code+' · '+(item.market==='TPEx'?'上櫃':'上市');name.append(detail);
+     button.append(icon,name);button.onclick=()=>{addCode(item.code);$('search').value='';renderList();};list.append(button);
+   }
+   if(!hits.length){const note=document.createElement('p');note.className='watch-tip';note.textContent='市場資料中沒有其他符合條件的股票。若代號正確，可在上方直接新增。';list.append(note);}
+ }
 }
 function makeCompact(entry){
- const pts=entry.days.map(d=>({date:d.date,close:d.close,volume_shares:d.volume,
-    foreign:d.foreign,trust:null,dealer:null,total:d.foreign,ma5:null,ma20:null,ma60:null,roc5:null,roc20:null,rsi14:null}));
- const last=pts.at(-1);
- return {code:entry.code,name:entry.name,points:pts,latest_close:last.close,latest_roc20:null,latest_rsi14:null,
-  signal:'資料不足',last_price_date:last.date,last_institution_date:last.date,
-  flows:{d5:{count:pts.length,total:null}},snapshot_only:true};
+ const raw=(entry.history?.length?entry.history:entry.days||[]);
+ const pts=raw.map(d=>({date:d.date,close:d.close,volume_shares:d.volume_shares??d.volume??null,
+    foreign:d.foreign??null,trust:d.trust??null,dealer:d.dealer??null,total:d.total??null,
+    ma5:d.ma5??null,ma20:d.ma20??null,ma60:d.ma60??null,
+    roc5:d.roc5??null,roc20:d.roc20??null,rsi14:d.rsi14??null}));
+ if(!pts.length)return null;
+ // If institutional stats are only available in four-day scan, add those to history by date.
+ for(const day of entry.days||[]){const p=pts.find(x=>x.date===day.date);if(p){
+   p.foreign=day.foreign??p.foreign;p.trust=day.trust??p.trust;
+   p.dealer=day.dealer??p.dealer;p.total=day.total??p.total;
+ }}
+ const last=pts.at(-1),available=pts.filter(p=>p.foreign!=null||p.total!=null);
+ const sum=(rows,key)=>rows.length&&rows.every(p=>p[key]!=null)?Math.round(rows.reduce((a,p)=>a+p[key],0)*100)/100:null;
+ const flows={};for(const n of [1,5,20]){const recent=available.slice(-n);flows['d'+n]={
+   count:recent.length,total:sum(recent,'total'),foreign:sum(recent,'foreign'),trust:sum(recent,'trust'),dealer:sum(recent,'dealer')};}
+ let signal='資料不足';
+ if(last.close!=null&&last.ma5!=null&&last.ma20!=null&&last.roc20!=null){
+   signal=last.close>last.ma20&&last.ma5>last.ma20&&last.roc20>0?'偏多':
+          last.close<last.ma20&&last.ma5<last.ma20&&last.roc20<0?'偏弱':'盤整';
+ }
+ return {code:entry.code,name:entry.name,points:pts,latest_close:last.close,latest_roc20:last.roc20,latest_rsi14:last.rsi14,
+   signal,last_price_date:last.date,last_institution_date:available.at(-1)?.date||null,market:entry.market||'TWSE',
+   flows,snapshot_only:true};
 }
 function selectOrMissing(code){
  const c=$('coverageNote');c.hidden=true;
- if(payload?.stocks?.[code]){select(code);if(payload.stocks[code].snapshot_only){c.hidden=false;c.textContent='此股僅有上市掃描取得的4日資料；不足以計算MA、ROC20與RSI14。若要完整歷史分析，需把代號加入GitHub專案的stocks.json並重新更新。';}return;}
+ if(payload?.stocks?.[code]){select(code);if(payload.stocks[code].snapshot_only){c.hidden=false;c.textContent=`此股可用 ${payload.stocks[code].points.length} 個交易日的盤後資料；部分法人日期或 MA60 可能不足，缺少的指標以「—」表示。`;}return;}
  selected=code;renderList();clearCharts();$('stockName').textContent=code+'｜尚無分析資料';$('stockCode').textContent=code;
  $('lastDate').textContent='資料不足';$('signal').textContent='資料不足';
  for(const id of ['vClose','vRoc','vRsi','vFlow'])paintNumber(id,null);
@@ -167,7 +195,7 @@ function renderScreen(){
  const body=$('screenTable');body.replaceChildren();
  if(marketData?.status!=='ok'){$('screenStatus').textContent='上市掃描暫時無法使用：'+(marketData?.error||'資料尚未發布')+'。不代表沒有符合條件的股票。';return;}
  const codes=marketData.matches||[];
- $('screenStatus').textContent='上市個股最新資料：'+marketData.date+'｜符合條件 '+codes.length+' 檔；排除 ETF 和上櫃股';
+ $('screenStatus').textContent='上市／上櫃個股最新資料：'+marketData.date+'｜符合條件 '+codes.length+' 檔；排除 ETF 和上櫃股';
  if(!codes.length){const row=body.insertRow(),cell=row.insertCell();cell.colSpan=4;cell.textContent='目前沒有符合全部條件的上市股票';return;}
  for(const code of codes){
    const item=marketData.stocks[code];if(!item)continue;
@@ -189,7 +217,7 @@ async function loadV2(){
  }catch(e){marketData={status:'unavailable',error:String(e),stocks:{},matches:[]};}
  if(userList===null){userList=savedCodes();if(userList===null){userList=Object.keys(payload?.stocks||{});saveCodes();}}
  for(const [code,item] of Object.entries(marketData?.stocks||{})){
-  if(!payload.stocks[code])payload.stocks[code]=makeCompact(item);
+  if(!payload.stocks[code]){const record=makeCompact(item);if(record)payload.stocks[code]=record;}
  }
  renderScreen();renderList();
  const code=userList.includes(selected)?selected:userList[0];
