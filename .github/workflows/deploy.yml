@@ -40,6 +40,8 @@ jobs:
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/update.py
+      - name: 掃描上市股票外資反轉及量能
+        run: python scripts/scanner.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
