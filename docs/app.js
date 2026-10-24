@@ -111,6 +111,90 @@ $('periodTabs').addEventListener('click',e=>{
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b===btn));
   if(selected)renderCharts(payload.stocks[selected]);
 });
-load();
-// Page checks for a newly deployed static snapshot; does not fetch live market quotes.
-setInterval(load,15*60*1000);
+
+
+const WATCH_KEY='tw-radar-personal-v1';
+let userList=null,marketData=null;
+function savedCodes(){try{const r=JSON.parse(localStorage.getItem(WATCH_KEY));return Array.isArray(r)?r.filter(c=>/^\\d{4,6}$/.test(c)):null;}catch{return null;}}
+function saveCodes(){try{localStorage.setItem(WATCH_KEY,JSON.stringify(userList));}catch{}}
+function addCode(code){
+  if(!/^\\d{4,6}$/.test(code)){alert('請輸入4至6碼股票代號');return;}
+  if(!userList.includes(code)){if(userList.length>=200){alert('自選股上限200檔');return;}userList.push(code);saveCodes();}
+  renderList();renderScreen();
+  selectOrMissing(code);
+  $('watchCode').value='';
+}
+function removeCode(code){
+  userList=userList.filter(x=>x!==code);saveCodes();
+  if(selected===code){selected=null;if(userList.length)selectOrMissing(userList[0]);else{$('stockName').textContent='目前沒有自選股';clearCharts();}}
+  renderList();renderScreen();
+}
+function renderList(){
+  const list=$('tickerList');list.replaceChildren();
+  const entries=userList||[];
+  const query=$('search').value.trim().toLowerCase();
+  $('tickerCount').textContent=String(entries.length);
+  for(const code of entries){
+    const stock=payload?.stocks?.[code],name=stock?.name||marketData?.stocks?.[code]?.name||'資料待補';
+    if(!code.includes(query)&&!name.toLowerCase().includes(query))continue;
+    const row=document.createElement('div');row.className='ticker-row';
+    const button=document.createElement('button');button.type='button';button.className='ticker'+(selected===code?' active':'');
+    const icon=document.createElement('span');icon.className='ticker-icon';icon.textContent=code.slice(-2);
+    const title=document.createElement('span');title.className='ticker-name';title.textContent=name;
+    const sub=document.createElement('span');sub.className='ticker-sub';sub.textContent=code;title.append(sub);
+    button.append(icon,title);button.onclick=()=>selectOrMissing(code);
+    const remove=document.createElement('button');remove.className='ticker-remove';remove.type='button';remove.textContent='×';remove.title='刪除自選股';remove.onclick=()=>removeCode(code);
+    row.append(button,remove);list.append(row);
+  }
+}
+function makeCompact(entry){
+ const pts=entry.days.map(d=>({date:d.date,close:d.close,volume_shares:d.volume,
+    foreign:d.foreign,trust:null,dealer:null,total:d.foreign,ma5:null,ma20:null,ma60:null,roc5:null,roc20:null,rsi14:null}));
+ const last=pts.at(-1);
+ return {code:entry.code,name:entry.name,points:pts,latest_close:last.close,latest_roc20:null,latest_rsi14:null,
+  signal:'資料不足',last_price_date:last.date,last_institution_date:last.date,
+  flows:{d5:{count:pts.length,total:null}},snapshot_only:true};
+}
+function selectOrMissing(code){
+ const c=$('coverageNote');c.hidden=true;
+ if(payload?.stocks?.[code]){select(code);if(payload.stocks[code].snapshot_only){c.hidden=false;c.textContent='此股僅有上市掃描取得的4日資料；不足以計算MA、ROC20與RSI14。若要完整歷史分析，需把代號加入GitHub專案的stocks.json並重新更新。';}return;}
+ selected=code;renderList();clearCharts();$('stockName').textContent=code+'｜尚無分析資料';$('stockCode').textContent=code;
+ $('lastDate').textContent='資料不足';$('signal').textContent='資料不足';
+ for(const id of ['vClose','vRoc','vRsi','vFlow'])paintNumber(id,null);
+ $('instTable').replaceChildren();c.hidden=false;c.textContent='已加入自選股，但目前未取得此代號的官方市場資料。網站不會產生虛構股價。';
+}
+function renderScreen(){
+ const body=$('screenTable');body.replaceChildren();
+ if(marketData?.status!=='ok'){$('screenStatus').textContent='上市掃描暫時無法使用：'+(marketData?.error||'資料尚未發布')+'。不代表沒有符合條件的股票。';return;}
+ const codes=marketData.matches||[];
+ $('screenStatus').textContent='上市個股最新資料：'+marketData.date+'｜符合條件 '+codes.length+' 檔；排除 ETF 和上櫃股';
+ if(!codes.length){const row=body.insertRow(),cell=row.insertCell();cell.colSpan=4;cell.textContent='目前沒有符合全部條件的上市股票';return;}
+ for(const code of codes){
+   const item=marketData.stocks[code];if(!item)continue;
+   const row=body.insertRow();row.insertCell().textContent=code+' '+item.name;
+   row.insertCell().textContent=item.days.slice(1).map(d=>signed(d.foreign)).join(' / ');
+   row.insertCell().textContent=signed(item.volume_change_pct,'%');
+   const button=document.createElement('button');button.type='button';button.className='screen-add';
+   button.textContent=userList?.includes(code)?'✓ 已追蹤':'＋ 追蹤';
+   button.onclick=()=>userList?.includes(code)?removeCode(code):addCode(code);
+   row.insertCell().append(button);
+ }
+}
+async function loadV2(){
+ await load();
+ try{
+   const r=await fetch('./data/screener.json?v='+Date.now(),{cache:'no-store'});
+   if(!r.ok)throw new Error('HTTP '+r.status);
+   marketData=await r.json();
+ }catch(e){marketData={status:'unavailable',error:String(e),stocks:{},matches:[]};}
+ if(userList===null){userList=savedCodes();if(userList===null){userList=Object.keys(payload?.stocks||{});saveCodes();}}
+ for(const [code,item] of Object.entries(marketData?.stocks||{})){
+  if(!payload.stocks[code])payload.stocks[code]=makeCompact(item);
+ }
+ renderScreen();renderList();
+ const code=userList.includes(selected)?selected:userList[0];
+ if(code)selectOrMissing(code);else{$('stockName').textContent='請新增自選股票';clearCharts();}
+}
+$('watchForm').addEventListener('submit',e=>{e.preventDefault();addCode($('watchCode').value.trim());});
+loadV2();
+setInterval(loadV2,15*60*1000);
