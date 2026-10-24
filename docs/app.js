@@ -104,7 +104,7 @@ async function load() {
   } catch(err) {notice(`無法載入分析資料：${err.message}。請先啟動本機網頁伺服器或檢查部署結果。`);$('updateTime').textContent='資料讀取失敗';}
 }
 $('search').addEventListener('input',renderList);
-$('refresh').addEventListener('click',load);
+$('refresh').addEventListener('click',loadV2);
 $('periodTabs').addEventListener('click',e=>{
   const btn=e.target.closest('button[data-period]');if(!btn)return;
   period=Number(btn.dataset.period);
@@ -115,10 +115,10 @@ $('periodTabs').addEventListener('click',e=>{
 
 const WATCH_KEY='tw-radar-personal-v1';
 let userList=null,marketData=null;
-function savedCodes(){try{const r=JSON.parse(localStorage.getItem(WATCH_KEY));return Array.isArray(r)?r.filter(c=>/^\\d{4,6}$/.test(c)):null;}catch{return null;}}
+function savedCodes(){try{const r=JSON.parse(localStorage.getItem(WATCH_KEY));return Array.isArray(r)?r.filter(c=>/^\d{4,6}$/.test(c)):null;}catch{return null;}}
 function saveCodes(){try{localStorage.setItem(WATCH_KEY,JSON.stringify(userList));}catch{}}
 function addCode(code){
-  if(!/^\\d{4,6}$/.test(code)){alert('請輸入4至6碼股票代號');return;}
+  if(!/^\d{4,6}$/.test(code)){alert('請輸入4至6碼股票代號');return;}
   if(!userList.includes(code)){if(userList.length>=200){alert('自選股上限200檔');return;}userList.push(code);saveCodes();}
   renderList();renderScreen();
   selectOrMissing(code);
@@ -193,9 +193,9 @@ function selectOrMissing(code){
 }
 function renderScreen(){
  const body=$('screenTable');body.replaceChildren();
- if(marketData?.status!=='ok'){$('screenStatus').textContent='上市掃描暫時無法使用：'+(marketData?.error||'資料尚未發布')+'。不代表沒有符合條件的股票。';return;}
+ if(marketData?.status!=='ok'){$('screenStatus').textContent='市場掃描暫時無法使用：'+(marketData?.error||'資料尚未發布')+'。不代表沒有符合條件的股票。';return;}
  const codes=marketData.matches||[];
- $('screenStatus').textContent='上市／上櫃個股最新資料：'+marketData.date+'｜符合條件 '+codes.length+' 檔；排除 ETF 和上櫃股';
+ $('screenStatus').textContent='上市／上櫃個股最新資料：'+marketData.date+'｜符合條件 '+codes.length+' 檔；排除 ETF（範圍依官方資料供應情況）';
  if(!codes.length){const row=body.insertRow(),cell=row.insertCell();cell.colSpan=4;cell.textContent='目前沒有符合全部條件的上市股票';return;}
  for(const code of codes){
    const item=marketData.stocks[code];if(!item)continue;
