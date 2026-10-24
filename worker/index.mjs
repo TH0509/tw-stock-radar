@@ -34,10 +34,29 @@ export function buildStock(code, prices, institutions){
  if(!candles.length)throw Error('找不到有效的開高低收行情');
  const rawFlow=new Map();
  for(const item of institutions){
-  const date=String(item.date||''),n=String(item.name||'');
-  const buy=num(item.buy),sell=num(item.sell);
-  const key=foreign.has(n)?'foreign':trust.has(n)?'trust':dealer.has(n)?'dealer':null;
-  if(!key||buy==null||sell==null||!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
+  const date=String(item.date||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
+  // Prefer FinMind's documented *Wide dataset: one row per trading date.
+  // Explicit zero-valued categories are returned as 0; absent days are still null.
+  if(Object.prototype.hasOwnProperty.call(item,'Foreign_Investor_buy')){
+   const fields=['Foreign_Investor','Foreign_Dealer_Self','Investment_Trust','Dealer','Dealer_self','Dealer_Hedging'];
+   const amounts={};
+   let valid=true;
+   for(const group of fields){
+    const buy=num(item[group+'_buy']),sell=num(item[group+'_sell']);
+    if(buy==null||sell==null){valid=false;break;}
+    amounts[group]=(buy-sell)/1000;
+   }
+   if(!valid)continue;
+   rawFlow.set(date,{foreign:amounts.Foreign_Investor+amounts.Foreign_Dealer_Self,
+    trust:amounts.Investment_Trust,
+    dealer:amounts.Dealer+amounts.Dealer_self+amounts.Dealer_Hedging});
+   continue;
+  }
+  // Compatibility with the legacy long-form dataset.
+  const name=String(item.name||''),buy=num(item.buy),sell=num(item.sell);
+  const key=foreign.has(name)?'foreign':trust.has(name)?'trust':dealer.has(name)?'dealer':null;
+  if(!key||buy==null||sell==null)continue;
   if(!rawFlow.has(date))rawFlow.set(date,{foreign:null,trust:null,dealer:null});
   const day=rawFlow.get(date);day[key]=(day[key]??0)+(buy-sell)/1000;
  }
@@ -62,7 +81,7 @@ export function buildStock(code, prices, institutions){
   last.close<last.ma20&&last.ma5<last.ma20&&last.roc20<0?'偏弱':'盤整';
  return {code,name:code,points,flows,latest_close:last.close,latest_roc20:last.roc20,
   latest_rsi14:last.rsi14,signal,last_price_date:last.date,last_institution_date:complete.at(-1)?.date||null,
-  price_adjusted:false,source:'FinMind TaiwanStockPrice + TaiwanStockInstitutionalInvestorsBuySell',
+  price_adjusted:false,source:'FinMind TaiwanStockPrice + TaiwanStockInstitutionalInvestorsBuySellWide',
   coverage:{price_days:points.length,institution_complete_days:complete.length,
    institution_minimum_met:complete.length>=15},updated_at:new Date().toISOString()};
 }
@@ -103,7 +122,7 @@ export default {async fetch(request,env,ctx){
  try{
   const [p,i]=await Promise.all([
    getDataset('TaiwanStockPrice',code,start,end,env.FINMIND_TOKEN),
-   getDataset('TaiwanStockInstitutionalInvestorsBuySell',code,start,end,env.FINMIND_TOKEN)]);
+   getDataset('TaiwanStockInstitutionalInvestorsBuySellWide',code,start,end,env.FINMIND_TOKEN)]);
   const response=json(buildStock(code,p,i),200,origin,14400);
   ctx.waitUntil(caches.default.put(key,response.clone()));return response;
  }catch(e){return json({error:String(e?.message||'來源暫時無法取得'),code},502,origin);}
