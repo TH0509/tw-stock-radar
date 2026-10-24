@@ -217,6 +217,7 @@ def materialize(cache_data, output, now):
                     signals.append(code)
         summary[market] = {"price_days": len(price_series),
                            "institution_days": len(flow_series),
+                           "newest_institution_date": max(flow_series) if flow_series else None,
                            "oldest_price_date": dates[0], "newest_price_date": dates[-1],
                            "stock_count": len(by_code)}
     signals.sort(key=lambda c: stock_index[c].get("volume_change_pct") or 0, reverse=True)
